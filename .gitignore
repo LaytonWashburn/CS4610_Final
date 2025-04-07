@@ -1,0 +1,6 @@
+node_modules
+playground
+.env
+.DS_Store
+yarn-error.log
+student_exercise_code

@@ -1,0 +1,60 @@
+:root {
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  --light-background: #e9ecef;
+  --dark-gray: #212529;
+  --white: #ffffff;
+  --black: #000000;
+  --usu-blue: #0f2539;
+  --sky-blue: #1E88E5;
+  --light-sky-blue: #64B5F6;
+  --medium-gray: #6c757d;
+  --light-gray: #dee2e6;
+  --success-green: #4CAF50;
+  --error-red: #D32F2F;
+  --charcoal: rgb(30, 30, 30);
+  --paper-shadow: 0px 1px 3px rgba(0,0,0,.24), 0px 1px 3px rgba(0,0,0,.12);
+  color: var(--dark-gray);
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--light-background);
+}
+
+h1 {
+  font-size: 2.4em;
+  margin: 0;
+}
+
+h2 {
+  font-size: 1.2em;
+  margin: 0;
+}
+
+h3 {
+  font-size: 1em;
+  margin: 0;
+}
+
+h4 {
+  font-size: .8em;
+}
+
+pre {
+  margin: 0;
+}
+
+#root {
+  /* height: 100%; */
+}
+
+.scrollbar.vertical, .scrollbar.horizontal {
+  z-index: 0 !important;
+}

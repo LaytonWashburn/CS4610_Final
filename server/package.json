@@ -1,0 +1,52 @@
+{
+  "name": "new-phanon",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "DEBUG='provider:*' nodemon index.ts",
+    "prod": "NODE_ENV=production node ./dist/index.js",
+    "build": "tsc",
+    "migrate-dev": "prisma migrate dev",
+    "migrate-prod": "prisma migrate deploy",
+    "migrate-reset": "prisma migrate reset",
+    "prisma-generate": "prisma generate",
+    "seed": "prisma db seed",
+    "console": "prisma-repl",
+    "studio": "prisma studio"
+  },
+  "dependencies": {
+    "@prisma/client": "5.6.0",
+    "bcryptjs": "^2.4.3",
+    "bullmq": "^5.1.12",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-async-errors": "^3.1.1",
+    "express-fileupload": "^1.5.1",
+    "express-handlebars": "^7.1.2",
+    "jsonwebtoken": "^9.0.2",
+    "lodash": "^4.17.21",
+    "morgan": "^1.10.0",
+    "new-phanon": "file:",
+    "prisma": "^5.6.0",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
+    "@types/express": "^4.17.21",
+    "@types/express-fileupload": "^1.5.1",
+    "@types/jsonwebtoken": "^9.0.5",
+    "@types/lodash": "^4.14.202",
+    "@types/morgan": "^1.9.9",
+    "@types/uuid": "^9.0.8",
+    "nodemon": "^3.0.1",
+    "rimraf": "^5.0.8",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  },
+  "prisma": {
+    "seed": "ts-node lib/prisma/seeds.ts",
+    "schema": "lib/prisma/schema.prisma"
+  },
+  "nodemonConfig": {
+    "ignore": []
+  }
+}
