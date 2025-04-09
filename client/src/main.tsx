@@ -14,6 +14,7 @@ import { Provider } from 'react-redux'
 import store from './store/store.ts'
 import { Dashboard } from './pages/Dashboard/_Dashboard.tsx'
 import { Tutors } from './pages/Tutors/Tutors.tsx'
+import { Chat } from './pages/Chat/Chat.tsx'
 
 const router = createBrowserRouter([
   {
@@ -42,6 +43,10 @@ const router = createBrowserRouter([
           {
             path: "/dashboard/tutors",
             element: <Tutors/>
+          },
+          {
+            path: "/dashboard/chat",
+            element: <Chat/>
           }
         ]
       }

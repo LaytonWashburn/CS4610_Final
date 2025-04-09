@@ -34,7 +34,7 @@ export const Dashboard = () => {
   return (
     <div>
       <Navbar/>
-      <h1>Welcome, {user?.firstName}</h1>
+      <h1 className = "text-red-700">Welcome, {user?.firstName}</h1>
       <Outlet/>
     </div>
   );
