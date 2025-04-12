@@ -1,4 +1,4 @@
-
+import {React, useState} from "react";
 
 /**
  * Component: Chat Room Information
@@ -7,6 +7,46 @@
 
 export const ChatRoomInformation = () => {
 
+  const [chatName, setChatName] = useState("");
+
+    // Function to handle the form submission
+    async function submit(e: React.FormEvent<HTMLFormElement>) {
+      e.preventDefault();
+  
+      if (!chatName.trim()) {
+        alert("Please enter a chat name");
+        return;
+      }
+  
+      try {
+        console.log("Starting Creating Chat Room");
+        // Send request to create a chat room using form data
+        const response = await fetch(`/create-chat-room`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            name: chatName,  // Chat room name
+          }),
+        });
+
+        console.log("Sent create chat room");
+  
+        if (!response.ok) {
+          throw new Error(`Error: ${response.statusText}`);
+        }
+  
+        const body = await response.json();
+        setChatName(body.data); // Set the summary (response data)
+  
+        console.log("Chat room created successfully:", body);
+        alert("Chat room created successfully!");
+      } catch (error) {
+        console.error("Error:", error);
+        alert("An error occurred while creating the chat room.");
+      }
+    }
 
 
     return (
@@ -15,8 +55,21 @@ export const ChatRoomInformation = () => {
           <div className="fixed inset-0 backdrop-blur-sm z-5 bg-opacity-50"></div>
       
           {/* Centered content */}
-          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 bg-primary-gray w-[50vw] h-[50vh] mx-auto ">
-            <h1 className="text-white text-center">Course:</h1>
+          <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 bg-secondary-pink w-[50vw] h-[50vh] mx-auto px-4 flex flex-col items-center justify-center">
+            <form action="" className="relative h-full text-white font-bold flex flex-col items-center justify-center">
+              <div className="px-4">
+                <label className="px-4">Enter Chat Name: </label>
+                <input 
+                  type="text" 
+                  name="" 
+                  id="" 
+                  className="bg-white text-black px-4"
+                  value={chatName}
+                  onChange={(e) => setChatName(e.target.value)} 
+                />
+              </div>
+              <button onClick={submit} className="absolute bottom-0 w-full bg-blue-500 text-white p-4 hover:font-bold cursor-pointer" >Create</button>
+            </form>
           </div>
         </>
       );
