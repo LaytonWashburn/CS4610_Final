@@ -52,7 +52,7 @@ export const ChatRoom = ({ id, name, _count, deleteChatHandler} : ChatRoomProps)
     };
 
     return(
-        <div className="bg-secondary-cyan flex justify-between p-1 m-1 w-[65vw] mx-auto rounded-sm">
+        <div className="bg-secondary-cyan flex justify-between p-1 m-1 w-[65vw] mx-auto rounded-lg">
             <div>
                 <span>Course Name: {name}</span>
                 <br />

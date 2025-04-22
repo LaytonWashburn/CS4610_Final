@@ -133,6 +133,7 @@ app.get('/messages/:chatRoomId', async (req, res) => {
       include: {
         sender: {
           select: {
+            id: true,
             firstName: true,
             lastName: true,
           }
