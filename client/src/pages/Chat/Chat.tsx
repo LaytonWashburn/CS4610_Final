@@ -6,14 +6,12 @@
 
 import { useState, useEffect } from 'react';
 import { ChatRoomInformation } from './ChatRoomInformation';
-
 import { ChatRoom } from './ChatRoom';
+import { Room } from './Room';
+
 import "../../index.css";
 
-interface ChatRoom {
-  id: number,
-  name: string
- }
+
 
 export const Chat = () => {
 
@@ -47,7 +45,7 @@ export const Chat = () => {
 
     return (
         <div className="w-screen">
-          <div className="w-[65vw] mx-auto flex justify-between">
+          <div className="w-[65vw] mx-auto flex justify-between mt-4">
             <p className="font-bold text-xl">Chats</p>
             <button 
               className="bg-secondary-teal rounded-sm hover:font-bold p-2 cursor-pointer" 

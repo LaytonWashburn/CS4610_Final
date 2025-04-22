@@ -5,6 +5,7 @@
  */
 
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom'; // ✅ import useNavigate
 
 interface ChatRoomProps {
     id: number;
@@ -22,7 +23,7 @@ interface ChatRoomProps {
 export const ChatRoom = ({ id, name, _count, deleteChatHandler} : ChatRoomProps) => {
 
     const [count, setCount] = useState(_count);
-
+    const navigate = useNavigate(); // Initialize navigate
 
     const deleteChat = async (id: number) => {
         try {
@@ -45,6 +46,11 @@ export const ChatRoom = ({ id, name, _count, deleteChatHandler} : ChatRoomProps)
         }
       };
 
+    const handleJoin = () => {
+      console.log("In the handle join");
+        navigate(`/dashboard/chat/${id}`); // ✅ go to the room route
+    };
+
     return(
         <div className="bg-secondary-cyan flex justify-between p-1 m-1 w-[65vw] mx-auto rounded-sm">
             <div>
@@ -58,7 +64,10 @@ export const ChatRoom = ({ id, name, _count, deleteChatHandler} : ChatRoomProps)
                     onClick={() => deleteChat(id)}>
                     Delete
                 </button>
-                <button className="bg-secondary-pink rounded-sm hover:font-bold p-2 cursor-pointer m-1">
+                <button 
+                    className="bg-secondary-pink rounded-sm hover:font-bold p-2 cursor-pointer m-1"
+                    onClick={handleJoin} // Connect Join button
+                >
                     Join
                 </button>
             </div>

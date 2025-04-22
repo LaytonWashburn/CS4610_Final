@@ -15,6 +15,7 @@ import store from './store/store.ts'
 import { Dashboard } from './pages/Dashboard/_Dashboard.tsx'
 import { Tutors } from './pages/Tutors/Tutors.tsx'
 import { Chat } from './pages/Chat/Chat.tsx'
+import { Room } from './pages/Chat/Room.tsx'
 
 const router = createBrowserRouter([
   {
@@ -46,7 +47,14 @@ const router = createBrowserRouter([
           },
           {
             path: "/dashboard/chat",
-            element: <Chat/>
+            element: <Chat/>,
+            children: [
+
+            ]
+          },
+          {
+            path: "/dashboard/chat/:id",
+            element: <Room />
           }
         ]
       }
