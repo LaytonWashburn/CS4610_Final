@@ -32,9 +32,8 @@ export const Dashboard = () => {
   if (loading) return <div>Loading...</div>;
 
   return (
-    <div>
+    <div className="flex flex-col">
       <Navbar/>
-      {/* <h1 className = "text-red-700">Welcome, {user?.firstName}</h1> */}
       <Outlet/>
     </div>
   );

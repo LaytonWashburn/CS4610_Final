@@ -5,48 +5,56 @@ import {React, useState} from "react";
  * @returns 
  */
 
-export const ChatRoomInformation = () => {
+interface ChatRoom {
+
+  createChat: (id: number) => void; // Add a handler for deleting chat
+}
+
+export const ChatRoomInformation = ({ createChat }: { createChat: (chat: ChatRoom) => void }) => {
 
   const [chatName, setChatName] = useState("");
 
-    // Function to handle the form submission
-    async function submit(e: React.FormEvent<HTMLFormElement>) {
-      e.preventDefault();
+  async function submit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
   
-      if (!chatName.trim()) {
-        alert("Please enter a chat name");
-        return;
-      }
-  
-      try {
-        console.log("Starting Creating Chat Room");
-        // Send request to create a chat room using form data
-        const response = await fetch(`/create-chat-room`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            name: chatName,  // Chat room name
-          }),
-        });
-
-        console.log("Sent create chat room");
-  
-        if (!response.ok) {
-          throw new Error(`Error: ${response.statusText}`);
-        }
-  
-        const body = await response.json();
-        setChatName(body.data); // Set the summary (response data)
-  
-        console.log("Chat room created successfully:", body);
-        alert("Chat room created successfully!");
-      } catch (error) {
-        console.error("Error:", error);
-        alert("An error occurred while creating the chat room.");
-      }
+    if (!chatName.trim()) {
+      alert("Please enter a chat name");
+      return;
     }
+  
+    try {
+      console.log("Starting Creating Chat Room");
+  
+      const response = await fetch(`/create-chat-room`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name: chatName }),
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Error: ${response.statusText}`);
+      }
+  
+      const body = await response.json();
+
+      console.log("Response from server:", JSON.stringify(body, null, 2)); // Log the full response
+  
+      const newChatRoom = body.chatRoom; // Ensure you're accessing `chatRoom` here
+      if (!newChatRoom || !newChatRoom.id || !newChatRoom.name) {
+        throw new Error('Invalid chat room data received');
+      }
+  
+      // Pass the new chat room data to the parent component (Chat)
+      createChat(newChatRoom); // Send the valid chat room to the parent component
+
+    } catch (error) {
+      console.error("Error creating chat room:", error);
+      alert("An error occurred while creating the chat room.");
+    }
+  }
+  
 
 
     return (

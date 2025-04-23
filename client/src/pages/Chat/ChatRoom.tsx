@@ -40,7 +40,8 @@ export const ChatRoom = ({ id, name, _count, deleteChatHandler} : ChatRoomProps)
           // Example: setChats(chats.filter(chat => chat.id !== chatId));
           console.log('Chat deleted successfully');
           // Optimistically remove the chat
-            deleteChatHandler(id);
+          deleteChatHandler(id);
+
         } catch (error) {
           console.error('Error deleting chat:', error);
         }
