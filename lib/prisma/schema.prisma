@@ -22,6 +22,9 @@ model User {
   updatedAt     DateTime      @updatedAt
   Message Message[]
   ChatRoomParticipant ChatRoomParticipant[]
+  profileImageUrl String? // <- URL or object path in MinIO
+
+  tutor Tutor?
 }
 
 enum RoleKey {
@@ -83,4 +86,13 @@ model ChatRoomParticipant {
   joinedAt   DateTime  @default(now())
 
   @@unique([userId, chatRoomId]) // Prevent duplicate entries
+}
+
+
+model Tutor {
+  id          Int             @id @default(autoincrement())
+  user        User            @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  tutorId     Int  @unique
+  documentImageUrl String? // <- Optional image stored in MinIO
+  online   Boolean @default(false)
 }

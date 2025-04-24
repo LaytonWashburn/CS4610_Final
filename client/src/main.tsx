@@ -16,6 +16,8 @@ import { Dashboard } from './pages/Dashboard/_Dashboard.tsx'
 import { Tutors } from './pages/Tutors/Tutors.tsx'
 import { Chat } from './pages/Chat/Chat.tsx'
 import { Room } from './pages/Chat/Room.tsx'
+import { DashboardHome } from './pages/Dashboard/DashboardHome.tsx'; // Import DashboardHome component
+
 
 const router = createBrowserRouter([
   {
@@ -41,6 +43,10 @@ const router = createBrowserRouter([
         path: "/dashboard",
         element: <Dashboard />,
         children: [
+          {
+            path: "", // Default route for the dashboard
+            element: <DashboardHome /> // This will render as the dashboard home page
+          },
           {
             path: "/dashboard/tutors",
             element: <Tutors/>

@@ -47,11 +47,33 @@ if (process.env.NODE_ENV !== 'production') {
   app.use("/static", express.static(path.join(__dirname, "static")));
 }
 
+
+
+
+
+// Endpoint to get the number of online tutors
+app.get('/tutors/online', async (req, res) => {
+
+  console.log("In the online api for tutors");
+
+  const onlineTutorsCount = await prismaClient.tutor.count({
+    where: { online: true },
+  });
+  console.log(`The number of tutors online is: ${onlineTutorsCount}`);
+  res.json({ onlineTutors: onlineTutorsCount });
+});
+
+
+
+
 // Chat Room API Endpoints
 app.get('/chats', async (req, res) => {
   const chatRooms = await prismaClient.chatRoom.findMany();
   res.json({'chatRooms': chatRooms});
 });
+
+
+
 
 app.delete('/delete-chat/:id', async (req, res) => {
   const chatRoomId = parseInt(req.params.id);
@@ -67,6 +89,9 @@ app.delete('/delete-chat/:id', async (req, res) => {
     res.status(500).json({ error: "Chat deletion failed", details: err });
   }
 });
+
+
+
 
 // Create a new chat room
 app.post('/create-chat-room', async (req, res) => {
@@ -91,6 +116,9 @@ app.post('/create-chat-room', async (req, res) => {
     res.status(500).json({ error: 'An error occurred while creating the chat room.' });
   }
 });
+
+
+
 
 app.get('/tutors', async (req, res) => {
   try {
@@ -158,6 +186,9 @@ app.post('/tutors', async (req, res) => {
   }
 })
 
+
+
+
 // Create a new message
 app.post('/messages', async (req, res) => {
   const { content, chatRoomId, senderId } = req.body;
@@ -183,6 +214,9 @@ app.post('/messages', async (req, res) => {
     res.status(500).json({ error: 'Failed to send message' });
   }
 });
+
+
+
 
 // Get all messages from a specific room
 app.get('/messages/:chatRoomId', async (req, res) => {
@@ -218,14 +252,38 @@ app.get('/messages/:chatRoomId', async (req, res) => {
   }
 });
 
+
+
+
 // Health check endpoint
 app.use('/health', (req, res) => {
   res.status(200).send('OK');
 });
 
-// Socket.IO connection handler
-io.on('connection', (socket: Socket) => {  // Explicitly type the socket parameter
-  console.log('A user connected:', socket.id);
+
+
+// // Socket.IO connection handler
+// io.on('connection', (socket: Socket) => {  // Explicitly type the socket parameter
+//   console.log('A user connected:', socket.id);
+
+
+
+//   // Handle disconnect
+//   socket.on('disconnect', () => {
+//     console.log("A user disconnected:", socket.id);
+//   });
+// });
+
+io.on("connection", (socket) => {
+  console.log("A user connected");
+
+  socket.on("tutor-online", async (userId: string) => {
+    console.log(`Tutor ${userId} is online`);
+    await prismaClient.tutor.update({
+      where: { tutorId: parseInt(userId) },
+      data: { online: true },
+    });
+  });
 
   // Handle user joining a chat room
   socket.on('join-room', (roomId: string) => {  // You can further type roomId if needed
@@ -233,11 +291,20 @@ io.on('connection', (socket: Socket) => {  // Explicitly type the socket paramet
     socket.join(roomId);  // Join the specific chat room
   });
 
-  // Handle disconnect
-  socket.on('disconnect', () => {
-    console.log("A user disconnected:", socket.id);
+  socket.on("tutor-offline", async (data: { userId: string }) => {
+    console.log(`Tutor ${data.userId} is offline`);
+    await prismaClient.tutor.update({
+      where: { tutorId: parseInt(data.userId) },
+      data: { online: false },
+    });
   });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected");
+  });
+  
 });
+
 
 
 

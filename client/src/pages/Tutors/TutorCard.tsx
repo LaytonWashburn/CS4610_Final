@@ -11,7 +11,7 @@ export const TutorCard = ({ id, firstName, lastName, email }) : ItutorCardProps 
 
 
     return(
-        <main className="flex flex-col w-[50vw] items-center justify-center shadow bg-secondary-cyan">
+        <main className="flex flex-col w-[50vw] items-center justify-center shadow bg-secondary-pink text-white rounded-lg">
             <p>Meet: {firstName } { lastName } </p>
             <p>Email: { email }</p>
         </main>

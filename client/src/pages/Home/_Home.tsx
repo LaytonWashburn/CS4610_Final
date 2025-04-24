@@ -1,6 +1,10 @@
 import { Link } from "react-router";
+import { useEffect } from 'react';
+
 
 export const Home = () => {
+
+
   return (
     <div>
       <h1>Home</h1>

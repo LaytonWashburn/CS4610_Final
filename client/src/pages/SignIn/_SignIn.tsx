@@ -3,6 +3,10 @@ import { Link, useNavigate } from "react-router"
 import { FormEvent, useState } from "react";
 import { useApi } from "../../lib/hooks/use_api";
 import { setAuthToken } from "../../store/application_slice";
+import { io } from "socket.io-client";
+import {jwtDecode } from "jwt-decode";
+
+let socket: Socket | null = null;
 
 export const SignIn = () => {
   const [email, setEmail] = useState("");
@@ -20,6 +24,16 @@ export const SignIn = () => {
     console.log(res);
     if (!res.error && res.authToken) {
       dispatch(setAuthToken(res.authToken))
+      // Decode the token to get user info
+      const decoded = jwtDecode(res.authToken);
+      console.log((decoded as any));
+      // If user is a tutor, emit the socket event
+      if ((decoded as any).isTutor) {
+        const socket = io();
+        // socket.emit("tutor-online", (decoded as any).userId);
+        // Emit tutor-online event with the userId
+        socket?.emit("tutor-online", (decoded as any).userId);
+      }
       navigate("/dashboard");
     } else {
       console.log(res.error)

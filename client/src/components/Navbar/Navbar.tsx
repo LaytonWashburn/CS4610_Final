@@ -18,7 +18,7 @@ export const Navbar = () => {
           </div>
           <div className="flex h-[4rem] items-center">
             <Link className="text-secondary-yellow mr-2  font-bold text-center flex items-center">Help</Link>
-            <Link className="text-primary-gray mr-2 font-bold text-center flex items-center">Logout</Link>
+            <Link className="text-primary-gray mr-2 font-bold text-center flex items-center" to={"/logout/"}>Logout</Link>
           </div>
         </nav>
       );
