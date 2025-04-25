@@ -25,7 +25,7 @@ export const ChatRoomInformation = ({ createChat }: { createChat: (chat: ChatRoo
     try {
       console.log("Starting Creating Chat Room");
   
-      const response = await fetch(`/create-chat-room`, {
+      const response = await fetch(`/chat/create`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

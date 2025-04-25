@@ -23,9 +23,16 @@ export const Chat = () => {
   };
 
   async function getChats() {
-    const response = await fetch('/chats');
-    const body = await response.json();
-    return body.chatRooms || []; // Ensure empty array if chatRooms is undefined
+    try {
+      console.log("Tryig to get the chats");
+      const response = await fetch('/chat/chats');
+      console.log(`Here is the response: ${response}`);
+      const body = await response.json();
+      console.log(`Here is the body: ${body}`);
+      return body.chatRooms || []; // Ensure empty array if chatRooms is undefined
+    } catch (error) {
+      console.log(error);
+    }
   }
 
   useEffect(() => {

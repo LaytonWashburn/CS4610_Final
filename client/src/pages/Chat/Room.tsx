@@ -33,7 +33,7 @@ export const Room = () => {
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch(`http://localhost:3000/messages/${id}`);
+      const res = await fetch(`/chat/messages/${id}`);
       const data = await res.json();
       console.log('Fetched messages:', data); // Log the messages data to check sender info
       setMessages(data);
@@ -63,7 +63,7 @@ export const Room = () => {
     if (!newMessage.trim() || !user) return;
 
     try {
-      await fetch(`http://localhost:3000/messages`, {
+      await fetch(`/chat/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -117,6 +117,7 @@ export const Room = () => {
             >
               <div className="font-semibold text-xs">
                 {msg.sender ? `${msg.sender.firstName} ${msg.sender.lastName}` : 'Unknown Sender'}
+                
               </div>
               <div className="text-gray-700">{msg.content}</div>
               <div className="text-[10px] text-gray-500 mt-1">

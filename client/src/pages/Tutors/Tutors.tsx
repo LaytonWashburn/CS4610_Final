@@ -18,7 +18,7 @@ export const Tutors = () => {
     };
 
     async function getTutors() {
-        const response = await fetch('/tutors');
+        const response = await fetch('/tutor/tutors');
         const body = await response.json();
         return body.tutors || []; // Ensure empty array if chatRooms is undefined
       }
@@ -46,9 +46,9 @@ export const Tutors = () => {
         <main className="flex flex-col w-[100vw] justify-center mb-12">
              {
                     tutors.length > 0 && (
-                        <p className="flex h-[2rem] mb-12 items-center justify-center text-white bg-secondary-orange w-[100vw]">Meet Your Tutors</p>
+                        <p className="flex h-[2rem] mb-12 items-center justify-center text-black font-bold text-2xl w-[100vw]">Meet Your Tutors</p>
                     )
-                }
+            }
             <div className="fixed bottom-0 flex justify-between h-[4rem] w-[100vw] bg-secondary-teal">
                 <button className="cursor-pointer bg-secondary-yellow hover:font-bold"
                         onClick={handleClick}>

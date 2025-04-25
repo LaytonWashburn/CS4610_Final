@@ -28,7 +28,7 @@ export const ChatRoom = ({ id, name, _count, deleteChatHandler} : ChatRoomProps)
     const deleteChat = async (id: number) => {
         try {
             console.log(`Id being deleted: ${id}`);
-          const response = await fetch(`/delete-chat/${id}`, {
+          const response = await fetch(`/chat/delete/${id}`, {
             method: 'DELETE',
           });
       

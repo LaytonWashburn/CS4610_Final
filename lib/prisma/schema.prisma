@@ -25,6 +25,8 @@ model User {
   profileImageUrl String? // <- URL or object path in MinIO
 
   tutor Tutor?
+
+  Session Session[]
 }
 
 enum RoleKey {
@@ -94,5 +96,19 @@ model Tutor {
   user        User            @relation(fields: [tutorId], references: [id], onDelete: Cascade)
   tutorId     Int  @unique
   documentImageUrl String? // <- Optional image stored in MinIO
+  available Boolean  @default(true) // true means available, false means unavailable
   online   Boolean @default(false)
+
+  Session Session[]
+}
+
+model Session {
+  id         Int      @id @default(autoincrement())
+  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  tutor      Tutor    @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  studentId  Int      
+  tutorId    Int
+  startTime  DateTime @default(now())  // Automatically sets the start time to the current time when a session is created
+  endTime    DateTime?                  // Optional, this will be set when the session ends
+  totalTime  Int?                        // Optional, can be calculated after the session ends (in seconds or minutes)
 }

@@ -6,7 +6,7 @@ export const DashboardHome = () => {
   useEffect(() => {
     const fetchOnlineTutors = async () => {
       try {
-        const response = await fetch('/tutors/online');
+        const response = await fetch('/tutor/online');
         const data = await response.json();
         setOnlineTutors(data.onlineTutors);
       } catch (error) {

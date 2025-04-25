@@ -19,7 +19,7 @@ export const AddTutor = ({addTutor} : {addTutor: ( tutor: IaddtutorProps) =>  vo
 
         try {
             console.log(`Sending ${id}`);
-            const response = await fetch(`/tutors/`, {
+            const response = await fetch(`/tutor/tutors/`, {
                 method: "POST",
                 headers: {
                     "Content-Type" : "application/json",
