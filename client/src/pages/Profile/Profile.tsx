@@ -4,7 +4,13 @@ import "../../index.css";
 
 interface MyTokenPayload {
     userId: number;
-    // Add more fields if your token has them
+}
+
+interface UserInfo {
+    firstName: string;
+    lastName: string;
+    email: string;
+    profileImageUrl: string | null;
 }
 
 export const Profile = () => {
@@ -14,55 +20,65 @@ export const Profile = () => {
   const [error, setError] = useState<string | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
   const [userId, setUserId] = useState<number | null>(null);
+  const [userInfo, setUserInfo] = useState<UserInfo | null>(null);
 
+  useEffect(() => {
+    const authToken = localStorage.getItem('authToken');
+    if (authToken) {
+      const decoded = jwtDecode<MyTokenPayload>(authToken);
+      setUserId(decoded.userId);
+      fetchUserInfo(decoded.userId);
+      fetchProfilePicture(decoded.userId);
+    }
+  }, []);
 
-
-  const fetchProfilePicture = async (id: number) => {
-    console.log(`In the fetch user profile with id: ${id}`);
+  const fetchUserInfo = async (id: number) => {
     try {
-      console.log('Making request to /profile/picture/${id}');
-      const response = await fetch(`/profile/picture/${id}`);
-      console.log('Response status:', response.status);
-      
+      const response = await fetch(`/profile/info/${id}`);
       if (response.ok) {
         const data = await response.json();
-        console.log('Received image data:', data);
+        setUserInfo(data);
+      }
+    } catch (error) {
+      console.error('Error fetching user info:', error);
+    }
+  };
+
+  const fetchProfilePicture = async (id: number) => {
+    try {
+      const response = await fetch(`/profile/picture/${id}`);
+      if (response.ok) {
+        const data = await response.json();
         if (data.imageData) {
           setPreviewUrl(data.imageData);
         }
-      } else {
-        console.log('Response not OK:', response.status, response.statusText);
-        const errorText = await response.text();
-        console.log('Error response:', errorText);
       }
     } catch (error) {
       console.error('Error fetching profile picture:', error);
     }
   };
 
-  // Handle file selection
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setProfilePicture(file);
-      setPreviewUrl(URL.createObjectURL(file));  // For preview
-      setUploadedFileName(null);  // reset if already uploaded
-      setError(null);  // Reset error when a new file is selected
+      setPreviewUrl(URL.createObjectURL(file));
+      setUploadedFileName(null);
+      setError(null);
     }
   };
 
-  // Handle file upload
   const handleUpload = async () => {
     if (!profilePicture) {
       setError("Please select a file first.");
       return;
     }
 
-    setUploading(true);  // Start uploading
-    setError(null);  // Reset error state
+    setUploading(true);
+    setError(null);
 
     const formData = new FormData();
-    formData.append('file', profilePicture);  // Append the selected file to FormData
+    formData.append('file', profilePicture);
 
     try {
       const authToken = localStorage.getItem('authToken');
@@ -72,7 +88,7 @@ export const Profile = () => {
 
       const decoded = jwtDecode<MyTokenPayload>(authToken);
       const userId = decoded.userId;
-      formData.append('userId', userId.toString());  // Add userId to FormData
+      formData.append('userId', userId.toString());
 
       const response = await fetch('/profile/upload/', {
         method: 'POST',
@@ -86,11 +102,9 @@ export const Profile = () => {
         throw new Error('Failed to upload the image.');
       }
 
-      const data = await response.json(); // Assuming the server sends a JSON response
-      setUploadedFileName(data.fileName);  // Set the uploaded file name if available
-      console.log('File uploaded successfully:', data);
+      const data = await response.json();
+      setUploadedFileName(data.fileName);
       
-      // Refresh the profile picture after upload
       if (userId) {
         fetchProfilePicture(userId);
       }
@@ -99,90 +113,127 @@ export const Profile = () => {
       setError(error.message || 'An error occurred while uploading.');
       console.error('Error:', error);
     } finally {
-      setUploading(false);  // Reset uploading state
+      setUploading(false);
     }
   };
 
-  useEffect(() => {
-    // Get userId from JWT token
-    const authToken = localStorage.getItem('authToken');
-    if (authToken) {
-      const decoded = jwtDecode<MyTokenPayload>(authToken);
-      setUserId(decoded.userId);
-      // Fetch existing profile picture
-      fetchProfilePicture(decoded.userId);
-    }
-  }, []);
-
   return (
-    <div style={{ textAlign: 'center', marginTop: '20px' }}>
-      <input
-        type="file"
-        name="file"
-        id="profile-picture-upload"
-        style={{ display: 'none' }}
-        accept="image/*"
-        onChange={handleFileChange} // Handle file change
-      />
+    <div className="min-h-screen bg-gray-100 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-4xl mx-auto">
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="px-6 py-8">
+            <div className="flex flex-col md:flex-row items-center md:items-start space-y-8 md:space-y-0 md:space-x-8">
+              {/* Profile Picture Section */}
+              <div className="w-full md:w-1/3 text-center">
+                <div className="relative mx-auto w-48 h-48 mb-4">
+                  {previewUrl ? (
+                    <img
+                      src={previewUrl}
+                      alt="Profile Preview"
+                      className="w-full h-full rounded-full object-cover border-4 border-indigo-500 shadow-lg"
+                      onError={(e) => {
+                        console.error('Image failed to load:', e);
+                        const img = e.target as HTMLImageElement;
+                        console.log('Failed image src:', img.src);
+                      }}
+                    />
+                  ) : (
+                    <div className="w-full h-full rounded-full bg-gray-200 flex items-center justify-center border-4 border-dashed border-gray-300">
+                      <span className="text-gray-400 text-lg">No Image</span>
+                    </div>
+                  )}
+                </div>
 
-      <button
-        onClick={() => document.getElementById('profile-picture-upload')?.click()}
-        className="upload-button"
-      >
-        <span className="material-symbols-outlined">
-          add
-        </span>
-      </button>
+                <div className="space-y-4">
+                  <input
+                    type="file"
+                    name="file"
+                    id="profile-picture-upload"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                  />
 
-      <div style={{ marginTop: '20px' }}>
-        <h3>Profile Picture Preview:</h3>
-        {previewUrl ? (
-          <img
-            src={previewUrl}
-            alt="Profile Preview"
-            onError={(e) => {
-              console.error('Image failed to load:', e);
-              const img = e.target as HTMLImageElement;
-              console.log('Failed image src:', img.src);
-            }}
-            style={{
-              width: '150px',
-              height: '150px',
-              borderRadius: '50%',
-              objectFit: 'cover',
-              border: '2px solid #4CAF50',
-            }}
-          />
-        ) : (
-          <div
-            style={{
-              width: '150px',
-              height: '150px',
-              borderRadius: '50%',
-              backgroundColor: '#f0f0f0',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              border: '2px dashed #4CAF50',
-              color: '#999',
-            }}
-          >
-            No Image
+                  <button
+                    onClick={() => document.getElementById('profile-picture-upload')?.click()}
+                    className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  >
+                    <span className="material-symbols-outlined mr-2">add</span>
+                    Select New Picture
+                  </button>
+
+                  <button
+                    onClick={handleUpload}
+                    disabled={uploading || !profilePicture}
+                    className={`w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white ${
+                      uploading || !profilePicture
+                        ? 'bg-gray-400 cursor-not-allowed'
+                        : 'bg-indigo-600 hover:bg-indigo-700'
+                    } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500`}
+                  >
+                    {uploading ? (
+                      <>
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Uploading...
+                      </>
+                    ) : (
+                      'Upload Profile Picture'
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* User Information Section */}
+              <div className="w-full md:w-2/3">
+                <h2 className="text-3xl font-bold text-gray-900 mb-6">Profile Information</h2>
+                
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">First Name</label>
+                      <div className="mt-1 p-2 bg-gray-50 rounded-md">
+                        <p className="text-gray-900">{userInfo?.firstName || 'Loading...'}</p>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Last Name</label>
+                      <div className="mt-1 p-2 bg-gray-50 rounded-md">
+                        <p className="text-gray-900">{userInfo?.lastName || 'Loading...'}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                    <div className="mt-1 p-2 bg-gray-50 rounded-md">
+                      <p className="text-gray-900">{userInfo?.email || 'Loading...'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Status Messages */}
+            <div className="mt-8">
+              {error && (
+                <div className="p-4 bg-red-50 rounded-md">
+                  <p className="text-sm text-red-700">{error}</p>
+                </div>
+              )}
+
+              {uploadedFileName && (
+                <div className="p-4 bg-green-50 rounded-md">
+                  <p className="text-sm text-green-700">Successfully uploaded: {uploadedFileName}</p>
+                </div>
+              )}
+            </div>
           </div>
-        )}
+        </div>
       </div>
-
-      <div style={{ marginTop: '10px' }}>
-        <button onClick={handleUpload} disabled={uploading || !profilePicture}>
-          {uploading ? "Uploading..." : "Upload Profile Picture"}
-        </button>
-      </div>
-
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      {uploadedFileName && (
-        <p style={{ color: 'green' }}>Uploaded as: {uploadedFileName}</p>
-      )}
     </div>
   );
 };

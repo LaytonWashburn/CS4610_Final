@@ -118,7 +118,41 @@ export const uploadPicture: EndpointBuilder = (db: PrismaClient) => async (req, 
     }
 }
 
+export const getUserInfo: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+    const userId = req.params.userId;
+    console.log('Getting user info for userId:', userId);
+    
+    if (!userId) {
+        console.log('No userId provided');
+        return res.status(400).json({ message: 'User ID is required.' });
+    }
+
+    try {
+        const user = await db.user.findUnique({
+            where: { id: parseInt(userId) },
+            select: {
+                firstName: true,
+                lastName: true,
+                email: true,
+                profileImageUrl: true
+            }
+        });
+
+        if (!user) {
+            console.log('User not found');
+            return res.status(404).json({ message: 'User not found.' });
+        }
+
+        console.log('Found user info:', user);
+        res.json(user);
+    } catch (error) {
+        console.error('Error in getUserInfo:', error);
+        res.status(500).json({ message: 'Failed to fetch user information.' });
+    }
+}
+
 export const ProfileController = controller([
     { method: "get", path: "/picture/:userId", builder: getProfilePicture },
-    { method: "post", path: "/upload", builder: uploadPicture }
+    { method: "post", path: "/upload", builder: uploadPicture },
+    { method: "get", path: "/info/:userId", builder: getUserInfo }
 ]);
