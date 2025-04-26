@@ -13,8 +13,9 @@ export const Navbar = () => {
               <Link className="text-secondary-pink font-bold text-center flex items-center hover:text-white" to={"/dashboard/"}>Home</Link>
               <Link className="text-secondary-pink font-bold text-center flex items-center hover:text-white" to={"/dashboard/tutors/"}>Tutors</Link>
               <Link className="text-secondary-pink font-bold text-center flex items-center hover:text-white" to={"/dashboard/chat/"}>Chat</Link>
+              <Link className="text-secondary-pink font-bold text-center flex items-center hover:text-white" >Ai</Link>
               <Link className="text-secondary-pink font-bold text-center flex items-center hover:text-white" to={"/dashboard/queue/"}>Queue</Link>
-              <Link className="text-secondary-pink font-bold text-center flex items-center hover:text-white">Profile</Link>
+              <Link className="text-secondary-pink font-bold text-center flex items-center hover:text-white" to={"/dashboard/profile/"}>Profile</Link>
           </div>
           <div className="flex h-[4rem] items-center">
             <Link className="text-secondary-yellow mr-2  font-bold text-center flex items-center">Help</Link>

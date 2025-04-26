@@ -1,6 +1,36 @@
 import { EndpointBuilder, controller } from "./controller";
 import { PrismaClient } from "@prisma/client";
 
+
+export const getTutorById: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+  console.log(req.params);
+  console.log(`TutorId ${req.params.id}`);
+
+  const tutorId = parseInt(req.params.id);
+
+  console.log(`TutorId ${tutorId}`);
+
+  if (isNaN(tutorId)) {
+    return res.status(400).json({ error: 'Invalid tutor ID.' });
+  }
+
+  try {
+    const tutor = await db.tutor.findUnique({
+      where: { tutorId: tutorId }, // tutorId is the FK to User.id
+      include: { user: true },     // include User data
+    });
+
+    if (!tutor) {
+      return res.status(404).json({ error: 'Tutor not found.' });
+    }
+
+    res.json({ tutor });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get tutor.' });
+  }
+};
+
+
 export const getTutors: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
   try {
     const tutors = await db.user.findMany({
@@ -38,6 +68,7 @@ export const getOnlineTutors: EndpointBuilder = (db: PrismaClient) => async (req
 };
 
 export const TutorController = controller([
+  { method: "get", path: "/tutors/:id", builder: getTutorById },
   { method: "get", path: "/tutors", builder: getTutors },
   { method: "post", path: "/tutors", builder: addTutor },
   { method: "get", path: "/online", builder: getOnlineTutors }

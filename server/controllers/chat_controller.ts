@@ -88,15 +88,6 @@ export const getMessages: EndpointBuilder = (db: PrismaClient) => async (req, re
   }
 };
 
-// export const getMessages: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
-//   const chatRoomId = parseInt(req.params.chatRoomId);
-//   const messages = await db.message.findMany({
-//     where: { chatRoomId },
-//     orderBy: { sentAt: 'asc' }
-//   });
-//   res.json(messages);
-// };
-
 export const ChatController =  controller([
   { method: "get", path: "/chats", builder: getChatRooms },
   { method: "post", path: "/create", builder: createChatRoom },

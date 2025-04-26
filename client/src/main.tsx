@@ -18,6 +18,7 @@ import { Chat } from './pages/Chat/Chat.tsx'
 import { Room } from './pages/Chat/Room.tsx'
 import { DashboardHome } from './pages/Dashboard/DashboardHome.tsx'; // Import DashboardHome component
 import { Queue } from './pages/Queue/Queue.tsx'
+import { Profile } from './pages/Profile/Profile.tsx'
 
 const router = createBrowserRouter([
   {
@@ -53,10 +54,7 @@ const router = createBrowserRouter([
           },
           {
             path: "/dashboard/chat",
-            element: <Chat/>,
-            children: [
-
-            ]
+            element: <Chat/>
           },
           {
             path: "/dashboard/chat/:id",
@@ -65,6 +63,10 @@ const router = createBrowserRouter([
           {
             path: "/dashboard/queue",
             element: <Queue/>
+          },
+          {
+            path: "/dashboard/profile",
+            element: <Profile/>
           }
         ]
       }

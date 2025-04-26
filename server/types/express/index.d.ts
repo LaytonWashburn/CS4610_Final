@@ -7,6 +7,7 @@ declare global {
       user?: User
       jwtPayload?: JwtPayload
       roles?: RoleKey[]
+      file?: Express.Multer.File;
     }
   }
 }
