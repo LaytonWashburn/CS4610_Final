@@ -6,7 +6,7 @@ import { Server } from 'socket.io'
 export type EndpointBuilder = (db: PrismaClient ) => (req: Request, res: Response) => void
 
 export type Endpoint = {
-  method: "get" | "post" | "put" | "delete",
+  method: "get" | "post" | "put" | "delete" | "patch",
   path: string,
   middleware?: MiddlewareFactory[]
   builder: EndpointBuilder

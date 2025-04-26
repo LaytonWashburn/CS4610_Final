@@ -20,18 +20,36 @@ export const joinQueue: EndpointBuilder = (db: PrismaClient) => async (req, res)
   const { studentId } = req.body;
   if (!studentId) return res.status(400).json({ error: 'Student ID is required' });
 
-  // Assuming studentQueue is your BullMQ queue instance
-  const job = await studentQueue.add('match-student', { studentId });
+  try {
+    // Check if student is already in queue
+    const activeJobs = await studentQueue.getJobs(['active', 'waiting']);
+    const isInQueue = activeJobs.some(job => job.data.studentId === studentId);
+    
+    if (isInQueue) {
+      return res.status(400).json({ error: 'Student is already in queue' });
+    }
 
-  // Wait for the job to be processed and get the result
-  const result = await job.waitUntilFinished(queueEvents); // ✨ MAGIC LINE
+    // Add student to queue
+    const job = await studentQueue.add('match-student', { studentId });
+    
+    // Get queue position
+    const waitingJobs = await studentQueue.getJobs(['waiting']);
+    const position = waitingJobs.findIndex(job => job.id === job.id) + 1;
 
-  console.log('Job result:', result);
-  res.status(201).json({ message: `Student ${studentId} matched`, result });
-  // const result = await studentQueue.add('match-student', { studentId });
-  // console.log(`Here's the result from the match-student ${result?.student}`);
-  // console.log(result);
-  // res.status(201).json({ message: `Student ${studentId} added to the queue` });
+    // Wait for the job to be processed and get the result
+    const result = await job.waitUntilFinished(queueEvents);
+
+    res.status(201).json({ 
+      message: `Student ${studentId} ${result.matched ? 'matched' : 'added to queue'}`,
+      result: {
+        ...result,
+        queuePosition: position
+      }
+    });
+  } catch (error) {
+    console.error('Error in joinQueue:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
 export const removeFromQueue: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
@@ -40,13 +58,28 @@ export const removeFromQueue: EndpointBuilder = (db: PrismaClient) => async (req
     return res.status(400).json({ error: 'Student ID and Tutor ID are required' });
   }
 
-  await studentQueue.add('remove-student', { studentId, tutorId });
-  res.status(200).json({ message: `Student ${studentId} removed from the queue` });
+  try {
+    await studentQueue.add('remove-student', { studentId, tutorId });
+    res.status(200).json({ message: `Student ${studentId} removed from the queue` });
+  } catch (error) {
+    console.error('Error in removeFromQueue:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
 export const queueStatus: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
-  const { waiting } = await studentQueue.getJobCounts();
-  res.json({ queueLength: waiting });
+  try {
+    const { waiting } = await studentQueue.getJobCounts();
+    const activeJobs = await studentQueue.getJobs(['waiting']);
+    
+    res.json({ 
+      queueLength: waiting,
+      positions: activeJobs.map(job => job.data.studentId)
+    });
+  } catch (error) {
+    console.error('Error in queueStatus:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 };
 
 export const QueueController = controller([

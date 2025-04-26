@@ -17,10 +17,12 @@ export const Logout = () => {
       const decoded = jwtDecode(authToken);
       const userId = (decoded as any).userId;  // Extract the user ID from the decoded token
 
-      // If socket exists, emit tutor-offline with the current user's ID
-      if (socket && userId) {
-        socket.emit("tutor-offline", { userId });
-        socket.disconnect();  // Disconnect the socket
+      // If socket exists and user is a tutor, emit tutor-offline
+      if (socket && userId && (decoded as any).isTutor) {
+        socket.emit("tutor-status", {
+          userId,
+          action: 'offline'
+        });
       }
     }
     dispatch(setAuthToken(null));

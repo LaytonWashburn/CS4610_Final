@@ -1,6 +1,9 @@
 import { EndpointBuilder, controller } from "./controller";
 import { PrismaClient } from "@prisma/client";
+import { getMinioClient } from "../minio/minio";
+import { Buffer } from 'buffer';
 
+const minioClient = getMinioClient();
 
 export const getTutorById: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
   console.log(req.params);
@@ -33,11 +36,43 @@ export const getTutorById: EndpointBuilder = (db: PrismaClient) => async (req, r
 
 export const getTutors: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
   try {
-    const tutors = await db.user.findMany({
-      where: { tutor: { isNot: null } },
+    const tutors = await db.tutor.findMany({
+      include: {
+        user: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            email: true,
+            profileImageUrl: true
+          }
+        }
+      }
     });
-    res.json({ tutors });
+
+    // Transform the data to match the expected format
+    const formattedTutors = tutors.map((tutor: { 
+      tutorId: number; 
+      online: boolean; 
+      user: { 
+        id: number;
+        firstName: string; 
+        lastName: string; 
+        email: string; 
+        profileImageUrl: string | null; 
+      }; 
+    }) => ({
+      id: tutor.tutorId,
+      firstName: tutor.user.firstName,
+      lastName: tutor.user.lastName,
+      email: tutor.user.email,
+      online: tutor.online,
+      profilePicture: tutor.user.profileImageUrl
+    }));
+
+    res.json({ tutors: formattedTutors });
   } catch (err) {
+    console.error("Error fetching tutors:", err);
     res.status(500).json({ error: 'Failed to get tutors.' });
   }
 };

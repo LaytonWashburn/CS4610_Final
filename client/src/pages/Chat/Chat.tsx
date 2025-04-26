@@ -51,12 +51,15 @@ export const Chat = () => {
 
   return (
     <div className="w-screen">
-      <div className="w-[65vw] mx-auto flex justify-between mt-4 mb-12">
-        <p className="font-bold text-xl">Chats</p>
+      <div className="w-[65vw] mx-auto flex items-center justify-between mt-4 mb-12">
+        <p className="font-bold text-3xl">Chats</p>
         <button
-          className="bg-secondary-teal rounded-sm hover:font-bold p-2 cursor-pointer"
+          className="flex justify-center bg-secondary-teal rounded-sm hover:font-bold p-2 cursor-pointer shadow-md hover:shadow-lg text-white"
           onClick={handleClick}
         >
+        <span className="material-symbols-outlined">
+          add
+        </span>
           New
         </button>
       </div>
@@ -66,7 +69,7 @@ export const Chat = () => {
         chats.map((chat: ChatRoom) => (
           <ChatRoom
             name={chat.name}
-            _count={0}
+            _count={chat.roomCount}
             key={chat.id}
             id={chat.id}
             deleteChatHandler={deleteChatHandler}

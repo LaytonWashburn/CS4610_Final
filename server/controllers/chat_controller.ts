@@ -3,6 +3,48 @@ import { PrismaClient } from "@prisma/client";
 import { Server } from "socket.io"; // Import socket.io Server type
 import { getIo } from "../socket/socketManager";
 
+
+export const updateChatRoomCountIncrement: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    console.log(`In the updateChatRoomCountIncrement ${id}`);
+    await db.chatRoom.update({
+      where: {
+        id: id
+      },
+      data: {
+        roomCount: {
+          increment: 1, // Increment the roomCount by 1
+        },
+      },
+    })
+  } catch (error) {
+    
+  }
+}
+
+export const updateChatRoomCountDecrement: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+  try {
+    const id = parseInt(req.params.id); // Parse the ID to a number
+    console.log(`In the updateChatRoomCountDecrement ${id}`);
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid chat room ID provided." });
+    }
+    await db.chatRoom.update({
+      where: {
+        id: id,
+      },
+      data: {
+        roomCount: {
+          decrement: 1, // Decrement the roomCount by 1
+        },
+      },
+    });
+  } catch (error){
+
+  }
+}
+
 export const getChatRooms: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
 
   try {
@@ -91,6 +133,8 @@ export const getMessages: EndpointBuilder = (db: PrismaClient) => async (req, re
 export const ChatController =  controller([
   { method: "get", path: "/chats", builder: getChatRooms },
   { method: "post", path: "/create", builder: createChatRoom },
+  { method: "patch", path: "/room/:id/increment", builder: updateChatRoomCountIncrement},
+  { method: "patch", path: "/room/:id/decrement", builder: updateChatRoomCountDecrement},
   { method: "delete", path: "/delete/:id", builder: deleteChatRoom },
   { method: "post", path: "/messages", builder: createMessage },
   { method: "get", path: "/messages/:chatRoomId", builder: getMessages }

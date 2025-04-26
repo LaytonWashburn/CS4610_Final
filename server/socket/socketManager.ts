@@ -1,6 +1,7 @@
 import { Server } from 'socket.io';
 import http from "http";
 import { PrismaClient } from "@prisma/client";
+import { TutorStatusService } from '../services/tutorStatusService';
 
 let io: Server | null = null;
 
@@ -12,7 +13,9 @@ export const setIo = (server: http.Server, prismaClient: PrismaClient) => {
     },
   });
 
-    // Socket Connections
+  const tutorStatusService = TutorStatusService.getInstance(prismaClient, io);
+
+  // Socket Connections
   io.on("connection", (socket) => {
     console.log("A user connected");
 
@@ -22,33 +25,30 @@ export const setIo = (server: http.Server, prismaClient: PrismaClient) => {
       socket.join(roomId);  // Join the specific chat room
     });
 
-    // Handle tutor coming online
-    socket.on("tutor-online", async (userId: string) => {
-      console.log(`Tutor ${userId} is online`);
-      await prismaClient.tutor.update({
-        where: { tutorId: parseInt(userId) },
-        data: { online: true },
-      });
-    });
-
-    // Handle tutor going offline
-    socket.on("tutor-offline", async (data: { userId: string }) => {
-      console.log(`Tutor ${data.userId} is offline`);
-      await prismaClient.tutor.update({
-        where: { tutorId: parseInt(data.userId) },
-        data: { online: false },
-      });
+    // Handle tutor status updates
+    socket.on("tutor-status", async (data: { userId: number, action: 'online' | 'offline' }) => {
+      console.log("In the tutor status");
+      if (data.action === 'online') {
+        await tutorStatusService.setTutorOnline(data.userId);
+      } else {
+        await tutorStatusService.setTutorOffline(data.userId);
+      }
     });
 
     // Handle a student requesting a session
-    socket.on('tutorSessionRequest', async (studentId: string | number) => {
-      // You can match a tutor here
-      console.log(`Student ${studentId} is requesting a session`);
+    socket.on('tutorSessionRequest', async (data: { studentId: number, tutorId: number }) => {
+      console.log(`Student ${data.studentId} is requesting a session with tutor ${data.tutorId}`);
+      // Emit match event to both student and tutor
+      io?.to(`student-${data.studentId}`).emit('match-found', { tutorId: data.tutorId });
+      io?.to(`tutor-${data.tutorId}`).emit('match-found', { studentId: data.studentId });
     });
 
     // Handle when the student finishes the session
-    socket.on('tutorSessionEnd', (tutorId: string | number) => {
-      console.log(`Tutor ${tutorId} has finished the session`);
+    socket.on('tutorSessionEnd', (data: { tutorId: number, studentId: number }) => {
+      console.log(`Session ended between tutor ${data.tutorId} and student ${data.studentId}`);
+      // Notify both parties that the session has ended
+      io?.to(`student-${data.studentId}`).emit('session-ended');
+      io?.to(`tutor-${data.tutorId}`).emit('session-ended');
     });
 
     // Handle disconnection
@@ -56,7 +56,6 @@ export const setIo = (server: http.Server, prismaClient: PrismaClient) => {
       console.log("User disconnected");
     });
   });
-
 };
 
 // Get the Socket.io instance, throwing an error if not set

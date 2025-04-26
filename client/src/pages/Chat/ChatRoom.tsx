@@ -20,57 +20,90 @@ interface ChatRoomProps {
     // };
   }
 
-export const ChatRoom = ({ id, name, _count, deleteChatHandler} : ChatRoomProps) => {
-
+export const ChatRoom = ({ id, name, _count, deleteChatHandler }: ChatRoomProps) => {
     const [count, setCount] = useState(_count);
     const navigate = useNavigate(); // Initialize navigate
 
     const deleteChat = async (id: number) => {
         try {
-            console.log(`Id being deleted: ${id}`);
-          const response = await fetch(`/chat/delete/${id}`, {
-            method: 'DELETE',
+            const response = await fetch(`/chat/delete/${id}`, {
+                method: 'DELETE',
+            });
+      
+            if (!response.ok) {
+                throw new Error('Failed to delete chat');
+            }
+      
+            deleteChatHandler(id);
+        } catch (error) {
+            console.error('Error deleting chat:', error);
+        }
+    };
+
+    const incrementRoomCount = async () => {
+        try {
+          const response = await fetch(`/chat/room/${id}/increment/`, {
+            method: 'PATCH', // Specify the HTTP method as PATCH
+            headers: {
+              'Content-Type': 'application/json', // Indicate that you're sending JSON data (if needed)
+              // You might need to include other headers like authorization tokens
+            },
+            // If you need to send data in the request body (though for increment/decrement, it's often in the URL)
+            body: JSON.stringify({}),
           });
       
           if (!response.ok) {
-            throw new Error('Failed to delete chat');
+            // Handle error responses (e.g., 4xx or 5xx status codes)
+            console.error(`HTTP error! status: ${response.status}`);
+            const errorData = await response.json();
+            console.error('Error data:', errorData);
+            return;
           }
       
-          // Optionally, update the state if you're tracking chat list
-          // Example: setChats(chats.filter(chat => chat.id !== chatId));
-          console.log('Chat deleted successfully');
-          // Optimistically remove the chat
-          deleteChatHandler(id);
-
+          const updatedChatRoom = await response.json();
+          console.log('Chat room count incremented:', updatedChatRoom);
+          // Update your React state or UI with the new data
         } catch (error) {
-          console.error('Error deleting chat:', error);
+          console.error('There was an error incrementing the chat room count:', error);
         }
       };
 
+
     const handleJoin = () => {
-      console.log("In the handle join");
+        incrementRoomCount();
         navigate(`/dashboard/chat/${id}`); // ✅ go to the room route
     };
 
     return(
-        <div className="bg-secondary-cyan flex justify-between p-1 m-1 w-[65vw] mx-auto rounded-lg">
-            <div>
-                <span>Course Name: {name}</span>
-                <br />
-                <span>Participants: {count}</span>
-            </div>
-            <div className="flex space-between">
-                <button 
-                    className="bg-primary-gray rounded-sm hover:font-bold p-2 cursor-pointer m-1"
-                    onClick={() => deleteChat(id)}>
-                    Delete
-                </button>
-                <button 
-                    className="bg-secondary-pink rounded-sm hover:font-bold p-2 cursor-pointer m-1"
-                    onClick={handleJoin} // Connect Join button
-                >
-                    Join
-                </button>
+        <div className="flex items-center justify-center ">
+            <div className="p-6 w-[65vw] bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 mb-4">
+                <div className="flex justify-between items-center">
+                    <div className="flex-1">
+                        <h3 className="text-xl font-semibold text-gray-800">{name}</h3>
+                        <p className="text-gray-600 mt-1">
+                            <span className="inline-flex items-center">
+                                <span className="material-symbols-outlined mr-1 text-sm">people</span>
+                                {count} participants
+                            </span>
+                        </p>
+                    </div>
+                    <div className="flex space-x-3">
+                        <button 
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+                            onClick={() => deleteChat(id)}
+                        >
+                            <span className="material-symbols-outlined mr-2">delete</span>
+                            Delete
+                        </button>
+                        <button 
+                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                            onClick={handleJoin}
+                        >
+                            <span className="material-symbols-outlined mr-2">login</span>
+                            Join
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     )

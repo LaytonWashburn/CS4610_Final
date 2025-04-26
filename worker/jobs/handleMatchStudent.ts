@@ -2,36 +2,63 @@ import { PrismaClient } from "@prisma/client";
 import { Job } from "bullmq";
 import { updateTutorAvailability } from "./updateTutorAvailbility";
 
-export async function handleMatchStudent(job: Job, db:PrismaClient) {
+interface MatchResult {
+    tutor: {
+        id: number;
+        user: {
+            firstName: string;
+            lastName: string;
+        };
+    } | null;
+    student: number;
+    matched: boolean;
+    queue: boolean;
+    queuePosition?: number;
+}
+
+export async function handleMatchStudent(job: Job, db: PrismaClient, queue: any): Promise<MatchResult> {
     const { studentId } = job.data;
-    console.log(`Matching student ${studentId}`);
   
     // Find an available tutor
     const availableTutor = await db.tutor.findFirst({
-      where: { available: true },
+        where: { available: true },
+        include: {
+            user: {
+                select: {
+                    firstName: true,
+                    lastName: true
+                }
+            }
+        }
     });
-
-    console.log(`After the query ${availableTutor}`);
   
     if (availableTutor) {
-      // Tutor found, now update their availability
-      await updateTutorAvailability(availableTutor.id, false, db); // Set tutor as unavailable
+        // Tutor found, now update their availability
+        await updateTutorAvailability(availableTutor.id, false, db);
   
-      // Match the student with the tutor (you can store the assignment or notify the student)
-      console.log(`Student ${studentId} matched with tutor ${availableTutor.id}`);
-      return {
-        tutor: availableTutor,
-        student: studentId,
-        matched: true,
-        queue: false,
-      };
+        return {
+            tutor: {
+                id: availableTutor.id,
+                user: {
+                    firstName: availableTutor.user.firstName,
+                    lastName: availableTutor.user.lastName
+                }
+            },
+            student: studentId,
+            matched: true,
+            queue: false
+        };
     } else {
-      console.log(`No available tutor found for student ${studentId}`);
-      return {
-        tutor: null,
-        student: studentId,
-        matched: false,
-        queue: true
-      };
+        // Get queue position
+        const waitingJobs = await queue.getJobs(['waiting']);
+        const position = waitingJobs.findIndex((j: Job) => j.id === job.id) + 1;
+
+        return {
+            tutor: null,
+            student: studentId,
+            matched: false,
+            queue: true,
+            queuePosition: position
+        };
     }
-  }
+}

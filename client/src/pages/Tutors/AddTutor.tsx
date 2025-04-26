@@ -1,4 +1,6 @@
 import {React, useState} from "react";
+import { socket } from "../../socket";
+
 
 /**
  * Component: Add Tutor Component
@@ -37,6 +39,10 @@ export const AddTutor = ({addTutor} : {addTutor: ( tutor: IaddtutorProps) =>  vo
             const tutor = body.newTutor;
 
             addTutor(tutor);
+            socket.emit("tutor-status", { 
+              userId: parseInt(id),
+              action: 'online'
+            });
 
         } catch (error) {
             

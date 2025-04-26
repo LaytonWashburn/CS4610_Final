@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { io, Socket } from 'socket.io-client';
 import { useApi } from "../../lib/hooks/use_api";
+import { useNavigate } from 'react-router-dom'; // ✅ import useNavigate
 
 interface Message {
   id: number;
@@ -22,6 +23,7 @@ export const Room = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ id: string } | null>(null);
   const api = useApi();
+  const navigate = useNavigate(); // Initialize navigate
 
   async function fetchUser() {
     const res = await api.get("/api/users/me");
@@ -87,6 +89,36 @@ export const Room = () => {
     }
   };
 
+        
+  const decrementRoomCount = async () => {
+    try {
+      const response = await fetch(`/chat/room/${id}/decrement/`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+  
+      if (!response.ok) {
+        console.error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json();
+        console.error('Error data:', errorData);
+        return;
+      }
+  
+      const updatedChatRoom = await response.json();
+      console.log('Chat room count decremented:', updatedChatRoom);
+      // Update your React state or UI
+    } catch (error) {
+      console.error('There was an error decrementing the chat room count:', error);
+    }
+  };
+
+  const handleLeave = () => {
+    decrementRoomCount();
+    navigate(`/dashboard/chat/`); // ✅ go to the room route
+  }
+
   useEffect(() => {
     fetchUser();
   }, []);
@@ -129,7 +161,12 @@ export const Room = () => {
           <p className="text-center text-gray-500">No messages yet.</p>
         )}
       </div>
-
+      <button className="absolute bottom-4 right-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+              onClick={handleLeave}
+      >
+          <span className="material-symbols-outlined mr-2">logout</span>
+          Leave
+      </button>
       <div className="bg-secondary-grey w-[50vw] absolute bottom-0 m-4 rounded-lg h-[10vh] flex flex-col mx-auto">
         <input
           className="m-2 w-[100%] outline-none text-sm p-2 rounded"
