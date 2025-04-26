@@ -38,9 +38,11 @@ export const setIo = (server: http.Server, prismaClient: PrismaClient) => {
     // Handle a student requesting a session
     socket.on('tutorSessionRequest', async (data: { studentId: number, tutorId: number }) => {
       console.log(`Student ${data.studentId} is requesting a session with tutor ${data.tutorId}`);
-      // Emit match event to both student and tutor
-      io?.to(`student-${data.studentId}`).emit('match-found', { tutorId: data.tutorId });
-      io?.to(`tutor-${data.tutorId}`).emit('match-found', { studentId: data.studentId });
+      // Generate a unique chat room ID
+      const chatRoomId = `chat-${data.studentId}-${data.tutorId}`;
+      // Emit match event to both student and tutor with chat room ID
+      io?.to(`student-${data.studentId}`).emit('match-found', { tutorId: data.tutorId, chatRoomId });
+      io?.to(`tutor-${data.tutorId}`).emit('match-found', { studentId: data.studentId, chatRoomId });
     });
 
     // Handle when the student finishes the session

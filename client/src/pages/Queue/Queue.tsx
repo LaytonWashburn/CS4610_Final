@@ -22,15 +22,23 @@ export const Queue = () => {
     const [tutor, setTutor] = useState<Tutor | null>(null);
     const [queuePosition, setQueuePosition] = useState<number | null>(null);
     const [showChat, setShowChat] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const navigate = useNavigate();
 
     async function getTutorInfo(id: number | string) {
         try {
             const response = await fetch(`/tutor/tutors/${id}`);
+            if (!response.ok) {
+                throw new Error('Failed to fetch tutor info');
+            }
             const body = await response.json();
+            if (!body.tutor) {
+                throw new Error('Tutor not found');
+            }
             return body.tutor;
         } catch (error) {
             console.error(`Error getting tutor info: ${error}`);
+            setError('Failed to get tutor information');
             return null;
         }
     }
@@ -38,17 +46,21 @@ export const Queue = () => {
     async function getQueuePosition() {
         try {
             const response = await fetch('/queue/status');
+            if (!response.ok) {
+                throw new Error('Failed to get queue position');
+            }
             const data = await response.json();
             setQueuePosition(data.queueLength);
         } catch (error) {
             console.error('Error getting queue position:', error);
+            setError('Failed to get queue position');
         }
     }
 
     async function joinQueue() {
         const token = localStorage.getItem('authToken');
         if (!token) {
-            console.error("User is not logged in");
+            setError("User is not logged in");
             return;
         }
         const decoded = jwtDecode<MyTokenPayload>(token);
@@ -65,20 +77,27 @@ export const Queue = () => {
                 })
             });
 
+            if (!response.ok) {
+                throw new Error('Failed to join queue');
+            }
+
             const body = await response.json();
             setQueue(body.result.queue);
             setMatched(body.result.matched);
             
             if (body.result.matched && body.result.tutor) {
                 const tutorInfo = await getTutorInfo(body.result.tutor.id);
-                setTutor(tutorInfo);
-                setShowChat(true);
-                navigate(`/chat/${tutorInfo.id}`);
+                if (tutorInfo) {
+                    setTutor(tutorInfo);
+                    setShowChat(true);
+                    navigate(`/dashboard/chat/${tutorInfo.id}`);
+                }
             } else if (body.result.queue) {
                 getQueuePosition();
             }
         } catch (error) {
             console.error('Error joining queue:', error);
+            setError('Failed to join queue');
         }
     }
 
@@ -93,11 +112,13 @@ export const Queue = () => {
     useEffect(() => {
         const handleMatch = async (data: { tutorId: number }) => {
             const tutorInfo = await getTutorInfo(data.tutorId);
-            setTutor(tutorInfo);
-            setMatched(true);
-            setQueue(false);
-            setShowChat(true);
-            navigate(`/chat/${tutorInfo.id}`);
+            if (tutorInfo) {
+                setTutor(tutorInfo);
+                setMatched(true);
+                setQueue(false);
+                setShowChat(true);
+                navigate(`/dashboard/chat/${tutorInfo.id}`);
+            }
         };
 
         socket.on('match-found', handleMatch);
@@ -110,6 +131,12 @@ export const Queue = () => {
     return (
         <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50 p-8">
             <div className="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
+                {error && (
+                    <div className="mb-4 p-4 bg-red-100 text-red-700 rounded-lg">
+                        {error}
+                    </div>
+                )}
+
                 {!queue && !matched && (
                     <button
                         onClick={joinQueue}

@@ -9,18 +9,18 @@ export const getTutorById: EndpointBuilder = (db: PrismaClient) => async (req, r
   console.log(req.params);
   console.log(`TutorId ${req.params.id}`);
 
-  const tutorId = parseInt(req.params.id);
+  const id = parseInt(req.params.id);
 
-  console.log(`TutorId ${tutorId}`);
+  console.log(`TutorId ${id}`);
 
-  if (isNaN(tutorId)) {
+  if (isNaN(id)) {
     return res.status(400).json({ error: 'Invalid tutor ID.' });
   }
 
   try {
     const tutor = await db.tutor.findUnique({
-      where: { tutorId: tutorId }, // tutorId is the FK to User.id
-      include: { user: true },     // include User data
+      where: { id: id },
+      include: { user: true },
     });
 
     if (!tutor) {
