@@ -27,6 +27,7 @@ model User {
   tutor Tutor?
 
   Session Session[]
+  queueEntries QueueEntry[]
 }
 
 enum RoleKey {
@@ -56,11 +57,13 @@ model ContextRole {
 model ChatRoom {
   id            Int                    @id @default(autoincrement())
   name          String
+  isPrivate     Boolean                @default(false)
   createdAt     DateTime               @default(now())
   updatedAt     DateTime               @updatedAt
   roomCount     Int                    @default(0)
   messages      Message[]
   participants  ChatRoomParticipant[]
+  sessions      Session[]
 }
 
 model Message {
@@ -106,17 +109,23 @@ model Tutor {
 }
 
 model Session {
-  id         Int      @id @default(autoincrement())
-  student    User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  tutor      Tutor    @relation(fields: [tutorId], references: [id], onDelete: Cascade)
-  studentId  Int      
-  tutorId    Int
-  startTime  DateTime @default(now())
-  endTime    DateTime?
-  totalTime  Int?
+  id            Int            @id @default(autoincrement())
+  student       User           @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  tutor         Tutor          @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  studentId     Int      
+  tutorId       Int
+  subject       String?
+  urgency       Urgency?
+  description   String?
+  estimatedTime Int?
+  startTime     DateTime       @default(now())
+  endTime       DateTime?
+  totalTime     Int?
   name          String
-  messages   Message[]
-  status     SessionStatus @default(ACTIVE)
+  messages      Message[]
+  status        SessionStatus  @default(ACTIVE)
+  chatRoom      ChatRoom?      @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  chatRoomId    Int?
 
   @@unique([studentId, tutorId, status], name: "unique_active_session")
 }
@@ -124,5 +133,35 @@ model Session {
 enum SessionStatus {
   ACTIVE
   ENDED
+  CANCELLED
+}
+
+enum Urgency {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+model QueueEntry {
+  id            Int         @id @default(autoincrement())
+  student       User        @relation(fields: [studentId], references: [id])
+  studentId     Int
+  subject       String?     // Make optional initially
+  urgency       Urgency     @default(MEDIUM)
+  description   String?     // Make optional initially
+  estimatedTime Int?        // Make optional initially
+  position      Int?        // Make optional initially
+  createdAt     DateTime    @default(now())
+  status        QueueStatus @default(WAITING)
+  studentName   String?     // Make optional initially
+
+  @@index([status, position])
+  @@index([studentId, status])
+}
+
+enum QueueStatus {
+  WAITING
+  IN_PROGRESS
+  COMPLETED
   CANCELLED
 }

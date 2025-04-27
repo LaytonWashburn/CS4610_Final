@@ -10,9 +10,12 @@ import fileUpload from "express-fileupload";
 import "express-async-errors";
 import { errorMiddlware } from "./middleware/error_middlware";
 import { Queue } from 'bullmq';
-import { Server } from 'socket.io'; // Import Socket.IO types
-import { getIo, setIo } from './socket/socketManager'
+import { initializeSocket } from './controllers/socket_controller';
 import { getMinioClient, createMinioProfileBucket } from "./minio/minio";
+import { Server } from 'socket.io';
+import { getIo, setIo } from './socket/socketManager';
+import { QueueService } from './services/queueService';
+import { SocketService } from './services/socketService';
 
 dotenv.config();
 
@@ -28,6 +31,9 @@ const server = http.createServer(app);  // Create the HTTP server
 setIo(server, prismaClient);
 
 const io: Server = getIo();
+
+const queueService = new QueueService();
+const socketService = new SocketService(io, queueService);
 
 const port = parseInt(process.env.PORT || '3000');
 

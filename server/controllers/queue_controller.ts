@@ -1,136 +1,153 @@
 import { EndpointBuilder, controller } from "./controller";
-import { Queue, QueueEvents } from 'bullmq';
 import { PrismaClient } from "@prisma/client";
-import { getIo } from '../socket/socketManager';
+import { QueueService } from '../services/queueService';
 
-// Redis connection configuration
-const redisConnection = {
-  host: process.env.REDIS_HOST,
-  port: parseInt(process.env.REDIS_PORT || "6379"),
-};
-
-const studentQueue = new Queue('student-queue', {
-  connection: redisConnection,
-});
-
-const queueEvents = new QueueEvents('student-queue', {
-  connection: redisConnection,
-});
+// Create a single instance of QueueService
+let queueService: QueueService | null = null;
 
 export const joinQueue: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
-  const { studentId } = req.body;
-  if (!studentId) return res.status(400).json({ error: 'Student ID is required' });
+  const { studentId, subject, urgency, description, estimatedTime } = req.body;
+  
+  if (!studentId || !subject || !urgency || !description || !estimatedTime) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
 
   try {
-    // Check if student is already in queue
-    const activeJobs = await studentQueue.getJobs(['active', 'waiting']);
-    const isInQueue = activeJobs.some(job => job.data.studentId === studentId);
-    
-    if (isInQueue) {
-      return res.status(400).json({ error: 'Student is already in queue' });
+    // Initialize QueueService if it doesn't exist
+    if (!queueService) {
+      queueService = new QueueService();
     }
 
-    // Find and delete any existing active session for this student
-    const existingSession = await db.session.findFirst({
-      where: {
-        studentId: studentId,
-        status: 'ACTIVE'
-      }
-    });
-
-    if (existingSession) {
-      await db.session.delete({
-        where: { id: existingSession.id }
-      });
-    }
-
-    // Add student to queue
-    const job = await studentQueue.add('match-student', { studentId });
-    
-    // Get queue position
-    const waitingJobs = await studentQueue.getJobs(['waiting']);
-    const position = waitingJobs.findIndex(job => job.id === job.id) + 1;
-
-    // Find an available tutor
-    const availableTutor = await db.tutor.findFirst({
-      where: {
-        online: true
-      }
-    });
-
-    if (!availableTutor) {
-      return res.status(400).json({ error: 'No available tutors' });
-    }
-
-    console.log('Available tutor found');
-    const io = getIo();
-
-    // Create a chat room for the student
-    const session = await db.session.create({
-      data: {
-        name: `Student ${studentId} Chat Room`,
-        studentId: studentId,
-        tutorId: availableTutor?.tutorId,
-        status: 'ACTIVE'
-      }
-    });
-
-    io.emit('test', {
-      message: 'Hello from the server'
-    });
-  
-    // Emit tutor-session-request event using tutorId (which is the user's ID)
-    io.to(`tutor-${availableTutor.tutorId}`).emit('tutor-session-request', {
+    const queueEntry = await queueService.joinQueue(
       studentId,
-      tutorId: availableTutor.id,
-      chatRoomId: session.id
-    });
-
+      subject,
+      urgency,
+      description,
+      estimatedTime
+    );
     res.status(201).json({ 
-      message: `Student ${studentId} added to queue`,
-      result: {
-        queuePosition: position,
-        chatRoomId: session.id
-      }
+      message: 'Joined queue successfully',
+      position: queueEntry.position,
+      entry: queueEntry
     });
   } catch (error) {
-    console.error('Error in joinQueue:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error joining queue:', error);
+    res.status(500).json({ error: 'Failed to join queue' });
   }
 };
 
 export const removeFromQueue: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
-  const { studentId, tutorId } = req.body;
-  if (!studentId || !tutorId) {
-    return res.status(400).json({ error: 'Student ID and Tutor ID are required' });
+  const { studentId } = req.body;
+  if (!studentId) {
+    return res.status(400).json({ error: 'Student ID is required' });
   }
 
   try {
-    await studentQueue.add('remove-student', { studentId, tutorId });
-    res.status(200).json({ message: `Student ${studentId} removed from the queue` });
+    // Initialize QueueService if it doesn't exist
+    if (!queueService) {
+      queueService = new QueueService();
+    }
+
+    await queueService.removeFromQueue(studentId);
+    res.status(200).json({ message: 'Left queue successfully' });
   } catch (error) {
-    console.error('Error in removeFromQueue:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error leaving queue:', error);
+    res.status(500).json({ error: 'Failed to leave queue' });
   }
 };
 
 export const queueStatus: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+  const { studentId } = req.query;
+  if (!studentId) {
+    return res.status(400).json({ error: 'Student ID is required' });
+  }
+
   try {
-    const { waiting } = await studentQueue.getJobCounts();
-    const activeJobs = await studentQueue.getJobs(['waiting']);
-    
-    res.json({ 
-      queueLength: waiting,
-      positions: activeJobs.map(job => job.data.studentId)
+    // Initialize QueueService if it doesn't exist
+    if (!queueService) {
+      queueService = new QueueService();
+    }
+
+    const position = await queueService.getQueuePosition(parseInt(studentId as string));
+    res.json({ position });
+  } catch (error) {
+    console.error('Error getting queue status:', error);
+    res.status(500).json({ error: 'Failed to get queue status' });
+  }
+};
+
+export const getUserQueueEntries: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+  const { studentId } = req.query;
+  if (!studentId) {
+    return res.status(400).json({ error: 'Student ID is required' });
+  }
+
+  try {
+    // Initialize QueueService if it doesn't exist
+    if (!queueService) {
+      queueService = new QueueService();
+    }
+
+    const entries = await queueService.getUserQueueEntries(parseInt(studentId as string));
+    res.json({ entries });
+  } catch (error) {
+    console.error('Error getting queue entries:', error);
+    res.status(500).json({ error: 'Failed to get queue entries' });
+  }
+};
+
+export const testQueue: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+  try {
+    // Initialize QueueService if it doesn't exist
+    if (!queueService) {
+      queueService = new QueueService();
+    }
+
+    // Test student ID (you can change this to any valid student ID)
+    const testStudentId = 1;
+
+    // Step 1: Join the queue
+    console.log('Step 1: Joining queue...');
+    const queueEntry = await queueService.joinQueue(
+      testStudentId,
+      'Mathematics',
+      'MEDIUM',
+      'Test question',
+      30
+    );
+    console.log('Joined queue successfully:', queueEntry);
+
+    // Step 2: Get position
+    console.log('Step 2: Getting position...');
+    const position = await queueService.getQueuePosition(testStudentId);
+    console.log('Current position:', position);
+
+    // Step 3: Remove from queue
+    console.log('Step 3: Removing from queue...');
+    await queueService.removeFromQueue(testStudentId);
+    console.log('Removed from queue successfully');
+
+    res.status(200).json({
+      message: 'Queue test completed successfully',
+      steps: [
+        { action: 'join', result: queueEntry },
+        { action: 'getPosition', result: position },
+        { action: 'remove', result: 'success' }
+      ]
     });
   } catch (error) {
-    console.error('Error in queueStatus:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error('Error in queue test:', error);
+    res.status(500).json({ 
+      error: 'Queue test failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
   }
 };
 
 export const QueueController = controller([
   { method: "post", path: "/join", builder: joinQueue },
   { method: "post", path: "/remove", builder: removeFromQueue },
-  { method: "get", path: "/status", builder: queueStatus }
+  { method: "get", path: "/status", builder: queueStatus },
+  { method: "get", path: "/entries", builder: getUserQueueEntries },
+  { method: "get", path: "/test", builder: testQueue }
 ]);
