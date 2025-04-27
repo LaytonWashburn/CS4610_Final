@@ -22,6 +22,9 @@ export const Room = () => {
   const [socket, setSocket] = useState<Socket | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ id: string } | null>(null);
+  const [roomInformation, setRoomInformation] = useState<any>({});
+
+
   const api = useApi();
   const navigate = useNavigate(); // Initialize navigate
 
@@ -43,6 +46,13 @@ export const Room = () => {
       console.error('Failed to fetch messages', err);
     }
   };
+
+  const fetchRoomInformation = async () => {
+    const res = await fetch(`/chat/info/${id}`);
+    const data = await res.json();
+    console.log('Fetched room information:', data);
+    setRoomInformation(data);
+  }
 
   useEffect(() => {
     const socket = io('http://localhost:3000');
@@ -116,11 +126,33 @@ export const Room = () => {
 
   const handleLeave = () => {
     decrementRoomCount();
-    navigate(`/dashboard/chat/`); // ✅ go to the room route
+    navigate(`/dashboard/chat/`);
+  }
+
+  const handleEndSession = async () => {
+    console.log("Ending session");
+    if (!socket || !user) return;
+
+    try {
+        // Emit socket event to end session
+        socket.emit('end_session', {
+            tutorId: parseInt(user.id),
+            chatRoomId: parseInt(id!)
+        });
+
+        // Decrement room count
+        await decrementRoomCount();
+        
+        // Navigate to queue
+        navigate(`/dashboard/queue/`);
+    } catch (error) {
+        console.error('Error ending session:', error);
+    }
   }
 
   useEffect(() => {
     fetchUser();
+    fetchRoomInformation();
   }, []);
 
   useEffect(() => {
@@ -162,10 +194,10 @@ export const Room = () => {
         )}
       </div>
       <button className="absolute bottom-4 right-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
-              onClick={handleLeave}
+              onClick={roomInformation.isPrivate ? handleEndSession : handleLeave}
       >
           <span className="material-symbols-outlined mr-2">logout</span>
-          Leave
+          {roomInformation.isPrivate ? "End Session" : "Leave"}
       </button>
       <div className="bg-secondary-grey w-[50vw] absolute bottom-0 m-4 rounded-lg h-[10vh] flex flex-col mx-auto">
         <input

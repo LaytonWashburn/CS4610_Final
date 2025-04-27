@@ -1,6 +1,6 @@
 import { Server, Socket } from 'socket.io';
 import { QueueService } from './queueService';
-import { PrismaClient, Urgency, SessionStatus } from '@prisma/client';
+import { PrismaClient, Urgency, SessionStatus, QueueStatus } from '@prisma/client';
 
 interface QueueEntry {
     id: number;
@@ -16,13 +16,12 @@ interface QueueEntry {
 interface MatchData {
     studentId: number;
     tutorId: number;
+    sessionId: number;
     subject: string;
     urgency: Urgency;
     description: string;
     estimatedTime: number;
     studentName: string;
-    sessionId?: number;
-    chatRoomId?: number;
 }
 
 export class SocketService {
@@ -31,16 +30,65 @@ export class SocketService {
     private availableTutors: Map<number, Socket> = new Map();
     private waitingStudents: Map<number, Socket> = new Map();
     private matchedPairs: Map<number, MatchData> = new Map(); // Track matched pairs
+    private prisma: PrismaClient;
 
     constructor(io: Server, queueService: QueueService) {
         this.io = io;
         this.queueService = queueService;
+        this.prisma = this.queueService.getPrismaClient();
         this.setupSocketHandlers();
     }
 
     private setupSocketHandlers() {
         this.io.on('connection', (socket: Socket) => {
             console.log('New client connected:', socket.id);
+
+            // Handle session ending
+            socket.on('end_session', async (data: { tutorId: number, chatRoomId: number }) => {
+                try {
+                    const { tutorId, chatRoomId } = data;
+                    
+                    // Find the session by chat room ID
+                    const session = await this.prisma.session.findFirst({
+                        where: { chatRoomId: chatRoomId }
+                    });
+
+                    if (!session) {
+                        throw new Error('Session not found');
+                    }
+
+                    // Update session status
+                    await this.prisma.session.update({
+                        where: { id: session.id },
+                        data: { 
+                            status: SessionStatus.ENDED,
+                            endTime: new Date()
+                        }
+                    });
+
+                    // Update tutor availability
+                    await this.prisma.tutor.update({
+                        where: { id: tutorId },
+                        data: { available: true }
+                    });
+
+                    // Remove from matched pairs
+                    this.matchedPairs.delete(tutorId);
+
+                    // Notify tutor they can accept new students
+                    const tutorSocket = this.availableTutors.get(tutorId);
+                    if (tutorSocket) {
+                        tutorSocket.emit('session_ended', { success: true });
+                        // Try to match tutor with next student
+                        this.tryMatchTutorWithStudent(tutorId);
+                    }
+
+                    console.log(`Session ${session.id} ended and tutor ${tutorId} is now available`);
+                } catch (error) {
+                    console.error('Error ending session:', error);
+                    socket.emit('session_ended', { success: false, error: 'Failed to end session' });
+                }
+            });
 
             // Handle tutor availability
             socket.on('tutor_available', (data: { tutorId: number, isAvailable: boolean }) => {
@@ -102,13 +150,21 @@ export class SocketService {
                     if (tutorSocket) {
                         // Only emit if student isn't already matched
                         if (!Array.from(this.matchedPairs.values()).some(match => match.studentId === nextStudent.studentId)) {
+                            // Update queue entry status to indicate tutor is assigned
+                            await this.prisma.queueEntry.update({
+                                where: { id: nextStudent.id },
+                                data: { 
+                                    status: QueueStatus.IN_PROGRESS
+                                }
+                            });
+
                             tutorSocket.emit('student_assigned', {
                                 studentId: nextStudent.studentId,
-                                subject: nextStudent.subject,
-                                urgency: nextStudent.urgency,
-                                description: nextStudent.description,
-                                estimatedTime: nextStudent.estimatedTime,
-                                studentName: nextStudent.studentName
+                                subject: nextStudent.subject || '',
+                                urgency: nextStudent.urgency || '',
+                                description: nextStudent.description || '',
+                                estimatedTime: nextStudent.estimatedTime || 0,
+                                studentName: nextStudent.studentName || ''
                             });
                         }
                     }
@@ -133,13 +189,21 @@ export class SocketService {
                     if (tutorSocket) {
                         // Only emit if tutor isn't already matched
                         if (!this.matchedPairs.has(tutorId)) {
+                            // Update queue entry status to indicate tutor is assigned
+                            await this.prisma.queueEntry.update({
+                                where: { id: studentEntry.id },
+                                data: { 
+                                    status: QueueStatus.IN_PROGRESS
+                                }
+                            });
+
                             tutorSocket.emit('student_assigned', {
                                 studentId: studentId,
-                                subject: studentEntry.subject,
-                                urgency: studentEntry.urgency,
-                                description: studentEntry.description,
-                                estimatedTime: studentEntry.estimatedTime,
-                                studentName: studentEntry.studentName
+                                subject: studentEntry.subject || '',
+                                urgency: studentEntry.urgency || '',
+                                description: studentEntry.description || '',
+                                estimatedTime: studentEntry.estimatedTime || 0,
+                                studentName: studentEntry.studentName || ''
                             });
                         }
                     }
@@ -152,43 +216,10 @@ export class SocketService {
 
     private async handleMatch(matchData: MatchData) {
         const { studentId, tutorId, subject, urgency, description, estimatedTime, studentName } = matchData;
-        const prisma = this.queueService.getPrismaClient();
         
         try {
-            // Check for existing active session
-            const existingSession = await prisma.session.findFirst({
-                where: {
-                    studentId,
-                    tutorId,
-                    status: SessionStatus.ACTIVE
-                }
-            });
-
-            if (existingSession) {
-                console.log(`Found existing active session ${existingSession.id} for student ${studentId} and tutor ${tutorId}`);
-                // Notify both parties about existing session
-                const studentSocket = this.waitingStudents.get(studentId);
-                const tutorSocket = this.availableTutors.get(tutorId);
-                
-                if (studentSocket) {
-                    studentSocket.emit('tutor_assigned', {
-                        ...matchData,
-                        sessionId: existingSession.id,
-                        chatRoomId: existingSession.chatRoomId
-                    });
-                }
-                if (tutorSocket) {
-                    tutorSocket.emit('tutor_assigned', {
-                        ...matchData,
-                        sessionId: existingSession.id,
-                        chatRoomId: existingSession.chatRoomId
-                    });
-                }
-                return;
-            }
-
             // Create chatroom first
-            const chatRoom = await prisma.chatRoom.create({
+            const chatRoom = await this.prisma.chatRoom.create({
                 data: {
                     name: `Tutor Session - ${subject}`,
                     isPrivate: true
@@ -196,7 +227,7 @@ export class SocketService {
             });
 
             // Create session
-            const session = await prisma.session.create({
+            const session = await this.prisma.session.create({
                 data: {
                     studentId,
                     tutorId,
@@ -211,7 +242,7 @@ export class SocketService {
             });
 
             // Add both users to the chatroom
-            await prisma.chatRoomParticipant.createMany({
+            await this.prisma.chatRoomParticipant.createMany({
                 data: [
                     { userId: studentId, chatRoomId: chatRoom.id },
                     { userId: tutorId, chatRoomId: chatRoom.id }
@@ -224,9 +255,14 @@ export class SocketService {
 
             // Store the match
             this.matchedPairs.set(tutorId, {
-                ...matchData,
+                studentId: studentId,
+                tutorId: tutorId,
                 sessionId: session.id,
-                chatRoomId: chatRoom.id
+                subject: subject || '',
+                urgency: urgency || Urgency.LOW,
+                description: description || '',
+                estimatedTime: estimatedTime || 0,
+                studentName: studentName || ''
             });
             
             // Notify both parties

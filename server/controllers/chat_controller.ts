@@ -134,6 +134,24 @@ export const getMessages: EndpointBuilder = (db: PrismaClient) => async (req, re
   }
 };
 
+export const getChatRoomInformation: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
+  const chatRoomId = parseInt(req.params.chatRoomId);
+  if (isNaN(chatRoomId)) {
+    return res.status(400).json({ error: "Invalid chat room ID" });
+  }
+  try {
+    const roomInformation = await db.chatRoom.findUnique({
+      where: {
+        id: chatRoomId
+      }
+    })
+    res.status(200).json(roomInformation);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch chat room information", details: error });
+  }
+  
+}
+
 export const ChatController =  controller([
   { method: "get", path: "/chats", builder: getChatRooms },
   { method: "post", path: "/create", builder: createChatRoom },
@@ -141,5 +159,6 @@ export const ChatController =  controller([
   { method: "patch", path: "/room/:id/decrement", builder: updateChatRoomCountDecrement},
   { method: "delete", path: "/delete/:id", builder: deleteChatRoom },
   { method: "post", path: "/messages", builder: createMessage },
-  { method: "get", path: "/messages/:chatRoomId", builder: getMessages }
+  { method: "get", path: "/messages/:chatRoomId", builder: getMessages },
+  { method: "get", path: "/info/:chatRoomId", builder: getChatRoomInformation }
 ]);
