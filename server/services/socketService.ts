@@ -66,6 +66,17 @@ export class SocketService {
                         }
                     });
 
+                    // Update queue entry status to COMPLETED
+                    await this.prisma.queueEntry.updateMany({
+                        where: { 
+                            studentId: session.studentId,
+                            status: QueueStatus.IN_PROGRESS
+                        },
+                        data: { 
+                            status: QueueStatus.COMPLETED
+                        }
+                    });
+
                     // Update tutor availability
                     await this.prisma.tutor.update({
                         where: { id: tutorId },
@@ -75,12 +86,35 @@ export class SocketService {
                     // Remove from matched pairs
                     this.matchedPairs.delete(tutorId);
 
-                    // Notify tutor they can accept new students
+                    // Get tutor socket and notify
                     const tutorSocket = this.availableTutors.get(tutorId);
                     if (tutorSocket) {
-                        tutorSocket.emit('session_ended', { success: true });
-                        // Try to match tutor with next student
-                        this.tryMatchTutorWithStudent(tutorId);
+                        tutorSocket.emit('session_ended', { 
+                            success: true,
+                            navigateTo: '/tutor-queue'
+                        });
+                        // Try to match with next student
+                        this.matchNextPair();
+                    } else {
+                        // If tutor socket not found, add it back to available tutors
+                        console.log(`Adding tutor ${tutorId} back to available tutors`);
+                        this.availableTutors.set(tutorId, socket);
+                        socket.emit('session_ended', { 
+                            success: true,
+                            navigateTo: '/tutor-queue'
+                        });
+                        this.matchNextPair();
+                    }
+
+                    // Find and remove student from waiting students
+                    const studentId = session.studentId;
+                    const studentSocket = this.waitingStudents.get(studentId);
+                    if (studentSocket) {
+                        studentSocket.emit('session_ended', { 
+                            success: true,
+                            navigateTo: '/dashboard/queue'
+                        });
+                        this.waitingStudents.delete(studentId);
                     }
 
                     console.log(`Session ${session.id} ended and tutor ${tutorId} is now available`);
@@ -95,7 +129,7 @@ export class SocketService {
                 if (data.isAvailable) {
                     console.log(`Tutor ${data.tutorId} is now available`);
                     this.availableTutors.set(data.tutorId, socket);
-                    this.tryMatchTutorWithStudent(data.tutorId);
+                    this.matchNextPair();
                 } else {
                     console.log(`Tutor ${data.tutorId} is no longer available`);
                     this.availableTutors.delete(data.tutorId);
@@ -106,7 +140,7 @@ export class SocketService {
             socket.on('join_queue', (data: { studentId: number }) => {
                 console.log(`Student ${data.studentId} joined the queue`);
                 this.waitingStudents.set(data.studentId, socket);
-                this.tryMatchStudentWithTutor(data.studentId);
+                this.matchNextPair();
             });
 
             // Handle tutor accepting student
@@ -136,81 +170,63 @@ export class SocketService {
         });
     }
 
-    private async tryMatchTutorWithStudent(tutorId: number) {
-        // Skip if tutor is already matched
-        if (this.matchedPairs.has(tutorId)) return;
-
+    private async matchNextPair() {
         try {
-            const nextStudent = await this.queueService.getNextStudent();
-            if (nextStudent) {
+            // Get all available tutors
+            const availableTutors = Array.from(this.availableTutors.entries())
+                .filter(([tutorId]) => !this.matchedPairs.has(tutorId));
+
+            // If no tutors available, nothing to do
+            if (availableTutors.length === 0) return;
+
+            // Get all waiting students in queue order
+            const queueEntries = await this.queueService.getWaitingQueue();
+            if (!queueEntries || queueEntries.length === 0) {
+                // No students in queue, notify tutors they're waiting
+                for (const [tutorId, tutorSocket] of availableTutors) {
+                    tutorSocket.emit('waiting_for_requests', { message: 'Waiting for student requests...' });
+                }
+                return;
+            }
+
+            // For each available tutor, try to match with the next student
+            for (const [tutorId, tutorSocket] of availableTutors) {
+                // Find next unmatched student
+                const nextStudent = queueEntries.find(entry => 
+                    !Array.from(this.matchedPairs.values()).some(match => match.studentId === entry.studentId)
+                );
+
+                if (!nextStudent) {
+                    // No more students to match, notify tutor they're waiting
+                    tutorSocket.emit('waiting_for_requests', { message: 'Waiting for student requests...' });
+                    continue;
+                }
+
                 const studentSocket = this.waitingStudents.get(nextStudent.studentId);
-                if (studentSocket) {
-                    console.log(`Found student ${nextStudent.studentId} for tutor ${tutorId}`);
-                    const tutorSocket = this.availableTutors.get(tutorId);
-                    if (tutorSocket) {
-                        // Only emit if student isn't already matched
-                        if (!Array.from(this.matchedPairs.values()).some(match => match.studentId === nextStudent.studentId)) {
-                            // Update queue entry status to indicate tutor is assigned
-                            await this.prisma.queueEntry.update({
-                                where: { id: nextStudent.id },
-                                data: { 
-                                    status: QueueStatus.IN_PROGRESS
-                                }
-                            });
+                if (!studentSocket) continue; // Student not connected, try next
 
-                            tutorSocket.emit('student_assigned', {
-                                studentId: nextStudent.studentId,
-                                subject: nextStudent.subject || '',
-                                urgency: nextStudent.urgency || '',
-                                description: nextStudent.description || '',
-                                estimatedTime: nextStudent.estimatedTime || 0,
-                                studentName: nextStudent.studentName || ''
-                            });
-                        }
+                console.log(`Matching tutor ${tutorId} with student ${nextStudent.studentId}`);
+                
+                // Update queue entry status
+                await this.prisma.queueEntry.update({
+                    where: { id: nextStudent.id },
+                    data: { 
+                        status: QueueStatus.IN_PROGRESS
                     }
-                }
+                });
+
+                // Notify tutor
+                tutorSocket.emit('student_assigned', {
+                    studentId: nextStudent.studentId,
+                    subject: nextStudent.subject || '',
+                    urgency: nextStudent.urgency || '',
+                    description: nextStudent.description || '',
+                    estimatedTime: nextStudent.estimatedTime || 0,
+                    studentName: nextStudent.studentName || ''
+                });
             }
         } catch (error) {
-            console.error('Error matching tutor with student:', error);
-        }
-    }
-
-    private async tryMatchStudentWithTutor(studentId: number) {
-        // Skip if student is already matched
-        if (Array.from(this.matchedPairs.values()).some(match => match.studentId === studentId)) return;
-
-        try {
-            const studentEntry = await this.queueService.getQueuePosition(studentId) as QueueEntry;
-            if (studentEntry && studentEntry.position === 1) {
-                const tutorId = Array.from(this.availableTutors.keys())[0];
-                if (tutorId) {
-                    console.log(`Found tutor ${tutorId} for student ${studentId}`);
-                    const tutorSocket = this.availableTutors.get(tutorId);
-                    if (tutorSocket) {
-                        // Only emit if tutor isn't already matched
-                        if (!this.matchedPairs.has(tutorId)) {
-                            // Update queue entry status to indicate tutor is assigned
-                            await this.prisma.queueEntry.update({
-                                where: { id: studentEntry.id },
-                                data: { 
-                                    status: QueueStatus.IN_PROGRESS
-                                }
-                            });
-
-                            tutorSocket.emit('student_assigned', {
-                                studentId: studentId,
-                                subject: studentEntry.subject || '',
-                                urgency: studentEntry.urgency || '',
-                                description: studentEntry.description || '',
-                                estimatedTime: studentEntry.estimatedTime || 0,
-                                studentName: studentEntry.studentName || ''
-                            });
-                        }
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error matching student with tutor:', error);
+            console.error('Error matching next pair:', error);
         }
     }
 
