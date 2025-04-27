@@ -1,6 +1,7 @@
 import { EndpointBuilder, controller } from "./controller";
 import { Queue, QueueEvents } from 'bullmq';
 import { PrismaClient } from "@prisma/client";
+import { getIo } from '../socket/socketManager';
 
 // Redis connection configuration
 const redisConnection = {
@@ -29,6 +30,20 @@ export const joinQueue: EndpointBuilder = (db: PrismaClient) => async (req, res)
       return res.status(400).json({ error: 'Student is already in queue' });
     }
 
+    // Find and delete any existing active session for this student
+    const existingSession = await db.session.findFirst({
+      where: {
+        studentId: studentId,
+        status: 'ACTIVE'
+      }
+    });
+
+    if (existingSession) {
+      await db.session.delete({
+        where: { id: existingSession.id }
+      });
+    }
+
     // Add student to queue
     const job = await studentQueue.add('match-student', { studentId });
     
@@ -36,14 +51,46 @@ export const joinQueue: EndpointBuilder = (db: PrismaClient) => async (req, res)
     const waitingJobs = await studentQueue.getJobs(['waiting']);
     const position = waitingJobs.findIndex(job => job.id === job.id) + 1;
 
-    // Wait for the job to be processed and get the result
-    const result = await job.waitUntilFinished(queueEvents);
+    // Find an available tutor
+    const availableTutor = await db.tutor.findFirst({
+      where: {
+        online: true
+      }
+    });
+
+    if (!availableTutor) {
+      return res.status(400).json({ error: 'No available tutors' });
+    }
+
+    console.log('Available tutor found');
+    const io = getIo();
+
+    // Create a chat room for the student
+    const session = await db.session.create({
+      data: {
+        name: `Student ${studentId} Chat Room`,
+        studentId: studentId,
+        tutorId: availableTutor?.tutorId,
+        status: 'ACTIVE'
+      }
+    });
+
+    io.emit('test', {
+      message: 'Hello from the server'
+    });
+  
+    // Emit tutor-session-request event using tutorId (which is the user's ID)
+    io.to(`tutor-${availableTutor.tutorId}`).emit('tutor-session-request', {
+      studentId,
+      tutorId: availableTutor.id,
+      chatRoomId: session.id
+    });
 
     res.status(201).json({ 
-      message: `Student ${studentId} ${result.matched ? 'matched' : 'added to queue'}`,
+      message: `Student ${studentId} added to queue`,
       result: {
-        ...result,
-        queuePosition: position
+        queuePosition: position,
+        chatRoomId: session.id
       }
     });
   } catch (error) {

@@ -35,27 +35,54 @@ export const setIo = (server: http.Server, prismaClient: PrismaClient) => {
       }
     });
 
-    // Handle a student requesting a session
-    socket.on('tutorSessionRequest', async (data: { studentId: number, tutorId: number }) => {
-      console.log(`Student ${data.studentId} is requesting a session with tutor ${data.tutorId}`);
-      // Generate a unique chat room ID
-      const chatRoomId = `chat-${data.studentId}-${data.tutorId}`;
-      // Emit match event to both student and tutor with chat room ID
-      io?.to(`student-${data.studentId}`).emit('match-found', { tutorId: data.tutorId, chatRoomId });
-      io?.to(`tutor-${data.tutorId}`).emit('match-found', { studentId: data.studentId, chatRoomId });
-    });
-
-    // Handle when the student finishes the session
-    socket.on('tutorSessionEnd', (data: { tutorId: number, studentId: number }) => {
-      console.log(`Session ended between tutor ${data.tutorId} and student ${data.studentId}`);
-      // Notify both parties that the session has ended
-      io?.to(`student-${data.studentId}`).emit('session-ended');
-      io?.to(`tutor-${data.tutorId}`).emit('session-ended');
+    // Handle user leaving a session
+    socket.on("leave-room", async (data: { roomId: string, userId: number, isTutor: boolean }) => {
+      console.log(`Socket ${socket.id} left room ${data.roomId}`);
+      
+      // Only leave the room, don't affect tutor status
+      socket.leave(data.roomId);
+      
+      // If the tutor is leaving, update the session status to ENDED
+      if (data.isTutor) {
+        try {
+          const sessionId = parseInt(data.roomId.replace('session-', ''));
+          await prismaClient.session.update({
+            where: { id: sessionId },
+            data: { status: 'ENDED' }
+          });
+          console.log(`Session ${sessionId} marked as ENDED because tutor left`);
+        } catch (error) {
+          console.error('Error updating session status:', error);
+        }
+      }
+      
+      // Check if room is empty and clean up if needed
+      const room = io?.sockets.adapter.rooms.get(data.roomId);
+      if (room && room.size === 0) {
+        console.log(`Room ${data.roomId} is empty, cleaning up...`);
+      }
     });
 
     // Handle disconnection
-    socket.on("disconnect", () => {
+    socket.on("disconnect", async () => {
       console.log("User disconnected");
+      
+      // Get all rooms the socket is in
+      const rooms = Array.from(socket.rooms);
+      
+      // Remove socket from all rooms
+      for (const roomId of rooms) {
+        if (roomId !== socket.id) { // Skip the socket's own room
+          socket.leave(roomId);
+          console.log(`Socket ${socket.id} left room ${roomId} on disconnect`);
+          
+          // Check if room is empty
+          const room = io?.sockets.adapter.rooms.get(roomId);
+          if (room && room.size === 0) {
+            console.log(`Room ${roomId} is empty after disconnect, cleaning up...`);
+          }
+        }
+      }
     });
   });
 };

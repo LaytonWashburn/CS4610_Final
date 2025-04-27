@@ -20,6 +20,7 @@ import { DashboardHome } from './pages/Dashboard/DashboardHome.tsx'; // Import D
 import { Queue } from './pages/Queue/Queue.tsx'
 import { Profile } from './pages/Profile/Profile.tsx'
 import { TutorDashboard } from './pages/Tutor/TutorDashboard'
+import { Ai } from './pages/Ai/Ai'
 
 const router = createBrowserRouter([
   {
@@ -72,6 +73,10 @@ const router = createBrowserRouter([
           {
             path: "/dashboard/tutor",
             element: <TutorDashboard/>
+          },
+          {
+            path: "/dashboard/ai",
+            element: <Ai/>
           }
         ]
       }

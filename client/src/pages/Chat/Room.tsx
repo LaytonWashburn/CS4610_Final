@@ -73,7 +73,7 @@ export const Room = () => {
         body: JSON.stringify({
           content: newMessage,
           chatRoomId: parseInt(id!),
-          senderId: user.id,
+          senderId: parseInt(user.id),
         }),
       });
 

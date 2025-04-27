@@ -30,18 +30,40 @@ export const TutorDashboard = () => {
             userId: decoded.userId,
             action: 'online'
         });
+
+        // Join the tutor's specific room using their user ID
+        socket.emit('join-room', `tutor-${decoded.userId}`);
+
         setIsOnline(true);
 
         // Handle match events
-        const handleMatch = (data: { studentId: number, chatRoomId: string }) => {
+        const handleMatch = (data: { studentId: number, chatRoomId: number }) => {
+            console.log("Matched, navigating the tutor");
             navigate(`/dashboard/chat/${data.chatRoomId}`);
         };
 
         socket.on('match-found', handleMatch);
 
+        // Listen for tutor session requests specific to this tutor's room
+        socket.on('tutor-session-request', (data: { studentId: number, tutorId: number, chatRoomId: number }) => {
+            console.log('Received tutor session request:', data);
+            if (data.tutorId === decoded.userId) {
+                navigate(`/dashboard/chat/${data.chatRoomId}`);
+            }
+        });
+
+        socket.on('test', (data: { message: string }) => {
+            console.log('Received test message:', data.message);
+        });
+
+        socket.on('match-error', (data: { error: string }) => {
+            console.error('Match error:', data.error);
+        });
+
         // Cleanup on unmount
         return () => {
             socket.off('match-found', handleMatch);
+            socket.off('tutor-session-request');
             socket.emit('tutor-status', {
                 userId: decoded.userId,
                 action: 'offline'

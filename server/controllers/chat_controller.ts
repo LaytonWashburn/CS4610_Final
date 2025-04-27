@@ -79,6 +79,8 @@ export const deleteChatRoom: EndpointBuilder = (db: PrismaClient) => async (req,
   }
 };
 
+
+
 export const createMessage: EndpointBuilder = (db: PrismaClient) => async (req, res) => {
   const { content, chatRoomId, senderId } = req.body;
   try {
@@ -97,6 +99,8 @@ export const createMessage: EndpointBuilder = (db: PrismaClient) => async (req, 
     res.status(500).json({ error: 'Failed to create message.', details: error });
   }
 };
+
+
 
 
 export const getMessages: EndpointBuilder = (db: PrismaClient) => async (req, res) => {

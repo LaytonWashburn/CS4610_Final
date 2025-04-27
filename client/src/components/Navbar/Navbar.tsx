@@ -40,8 +40,18 @@ export const Navbar = () => {
                 </Link>
                 <Link 
                     className="text-primary-white font-medium hover:text-secondary-grey transition-colors duration-200" 
+                    to={"/dashboard/ai/"}>
+                    AI
+                </Link>
+                <Link 
+                    className="text-primary-white font-medium hover:text-secondary-grey transition-colors duration-200" 
                     to={"/dashboard/queue/"}>
                     Queue
+                </Link>
+                <Link 
+                    className="text-primary-white font-medium hover:text-secondary-grey transition-colors duration-200" 
+                    to={"/dashboard/profile/"}>
+                    Profile
                 </Link>
                 {isTutor && (
                     <Link 

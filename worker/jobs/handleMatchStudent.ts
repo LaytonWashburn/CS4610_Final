@@ -2,6 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { Job } from "bullmq";
 import { updateTutorAvailability } from "./updateTutorAvailbility";
 
+
 interface MatchResult {
     tutor: {
         id: number;
@@ -35,7 +36,9 @@ export async function handleMatchStudent(job: Job, db: PrismaClient, queue: any)
     if (availableTutor) {
         // Tutor found, now update their availability
         await updateTutorAvailability(availableTutor.id, false, db);
-  
+
+        
+
         return {
             tutor: {
                 id: availableTutor.id,

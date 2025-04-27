@@ -1,8 +1,6 @@
 import { Worker, Job, Queue } from "bullmq";
 import { PrismaClient } from "@prisma/client";
 import dotenv from "dotenv";
-import { io } from 'socket.io-client';  // To notify students via Socket.IO
-import { updateTutorAvailability } from "./jobs/updateTutorAvailbility";
 import { handleMatchStudent } from "./jobs/handleMatchStudent";
 import { handleRemoveStudent } from "./jobs/handleRemoveStudent";
 

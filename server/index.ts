@@ -14,7 +14,6 @@ import { Server } from 'socket.io'; // Import Socket.IO types
 import { getIo, setIo } from './socket/socketManager'
 import { getMinioClient, createMinioProfileBucket } from "./minio/minio";
 
-
 dotenv.config();
 
 // Prisma Client instance
@@ -22,7 +21,6 @@ const prismaClient = new PrismaClient();
 
 const minioClient = getMinioClient();
 createMinioProfileBucket(minioClient);
-
 
 const app = express();
 const server = http.createServer(app);  // Create the HTTP server
@@ -43,14 +41,10 @@ app.use(morgan("dev"));
 
 app.use("/static", express.static(path.join(__dirname, "static")));
 
-
 // Health check endpoint
 app.use('/health', (req, res) => {
   res.status(200).send('OK');
 });
-
-
-
 
 router(app, prismaClient);
 app.use(errorMiddlware(prismaClient));

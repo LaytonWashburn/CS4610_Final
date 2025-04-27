@@ -5,6 +5,7 @@ volumes:
   db_data:
   cache:
   minio_data:
+  ollama:
 services:
   db:
     image: postgres:latest
@@ -82,3 +83,10 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama:/root/.ollama

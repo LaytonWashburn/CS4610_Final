@@ -23,10 +23,10 @@ interface Tutor {
 }
 
 interface ChatInterfaceProps {
-  tutorId: number;
+  chatRoomId: number;
 }
 
-export const ChatInterface = ({ tutorId }: ChatInterfaceProps) => {
+export const ChatInterface = ({ chatRoomId }: ChatInterfaceProps) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
   const [user, setUser] = useState<{ id: string; firstName: string; lastName: string } | null>(null);
@@ -51,7 +51,7 @@ export const ChatInterface = ({ tutorId }: ChatInterfaceProps) => {
 
   async function fetchTutor() {
     try {
-      const response = await fetch(`/tutor/tutors/${tutorId}`);
+      const response = await fetch(`/tutor/tutors/${chatRoomId}`);
       if (!response.ok) {
         throw new Error('Failed to fetch tutor');
       }
@@ -68,7 +68,7 @@ export const ChatInterface = ({ tutorId }: ChatInterfaceProps) => {
 
   const fetchMessages = async () => {
     try {
-      const res = await fetch(`/chat/tutor-messages/${tutorId}`);
+      const res = await fetch(`/chat/messages/${chatRoomId}`);
       if (!res.ok) {
         throw new Error('Failed to fetch messages');
       }
@@ -96,25 +96,54 @@ export const ChatInterface = ({ tutorId }: ChatInterfaceProps) => {
       setMessages((prevMessages: Message[]) => [...prevMessages, message]);
     };
 
-    socket.on('receiveTutorMessage', handleReceiveMessage);
+    const handleTutorHello = (data: { message: string }) => {
+      console.log(data.message);
+      // You could add this as a system message if you want
+      // setMessages(prev => [...prev, { id: Date.now(), content: data.message, sentAt: new Date().toISOString(), sender: { id: 'system', firstName: 'System', lastName: '' } }]);
+    };
+
+    const handleStudentHello = (data: { message: string }) => {
+      console.log(data.message);
+      // You could add this as a system message if you want
+      // setMessages(prev => [...prev, { id: Date.now(), content: data.message, sentAt: new Date().toISOString(), sender: { id: 'system', firstName: 'System', lastName: '' } }]);
+    };
+
+    socket.on('receiveMessage', handleReceiveMessage);
+    socket.on('tutor-hello', handleTutorHello);
+    socket.on('student-hello', handleStudentHello);
+
+    // Join the session
+    if (user) {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        const decoded = jwtDecode<{ role: string }>(token);
+        if (decoded.role === 'TUTOR') {
+          socket.emit('tutor-join-session', { sessionId: chatRoomId, tutorId: user.id });
+        } else {
+          socket.emit('student-join-session', { sessionId: chatRoomId, studentId: user.id });
+        }
+      }
+    }
 
     return () => {
-      socket.off('receiveTutorMessage', handleReceiveMessage);
+      socket.off('receiveMessage', handleReceiveMessage);
+      socket.off('tutor-hello', handleTutorHello);
+      socket.off('student-hello', handleStudentHello);
     };
-  }, []);
+  }, [user, chatRoomId]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user) return;
 
     try {
-      const response = await fetch(`/chat/tutor-messages`, {
+      const response = await fetch(`/chat/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
           content: newMessage,
-          tutorId: tutorId,
+          chatRoomId: chatRoomId,
           senderId: user.id,
         }),
       });

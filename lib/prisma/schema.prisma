@@ -71,25 +71,28 @@ model Message {
   sender      User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
   senderId    Int
 
-  chatRoom    ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
-  chatRoomId  Int
+  chatRoom    ChatRoom? @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
+  chatRoomId  Int?
+
+  session     Session?  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionId   Int?
 
   @@index([chatRoomId, sentAt])
+  @@index([sessionId, sentAt])
 }
 
 model ChatRoomParticipant {
   id         Int       @id @default(autoincrement())
-  user       User      @relation(fields: [userId], references: [id])
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId     Int
 
-  chatRoom   ChatRoom  @relation(fields: [chatRoomId], references: [id])
+  chatRoom   ChatRoom  @relation(fields: [chatRoomId], references: [id], onDelete: Cascade)
   chatRoomId Int
 
   joinedAt   DateTime  @default(now())
 
   @@unique([userId, chatRoomId]) // Prevent duplicate entries
 }
-
 
 model Tutor {
   id          Int             @id @default(autoincrement())
@@ -108,7 +111,18 @@ model Session {
   tutor      Tutor    @relation(fields: [tutorId], references: [id], onDelete: Cascade)
   studentId  Int      
   tutorId    Int
-  startTime  DateTime @default(now())  // Automatically sets the start time to the current time when a session is created
-  endTime    DateTime?                  // Optional, this will be set when the session ends
-  totalTime  Int?                        // Optional, can be calculated after the session ends (in seconds or minutes)
+  startTime  DateTime @default(now())
+  endTime    DateTime?
+  totalTime  Int?
+  name          String
+  messages   Message[]
+  status     SessionStatus @default(ACTIVE)
+
+  @@unique([studentId, tutorId, status], name: "unique_active_session")
+}
+
+enum SessionStatus {
+  ACTIVE
+  ENDED
+  CANCELLED
 }
