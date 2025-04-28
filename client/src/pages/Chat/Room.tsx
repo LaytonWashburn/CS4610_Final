@@ -142,7 +142,7 @@ export const Room = () => {
 
         // Decrement room count
         await decrementRoomCount();
-        
+        console.log("Trying to navigate to queue page");
         // Navigate to queue
         navigate(`/dashboard/queue/`);
     } catch (error) {
