@@ -57,6 +57,7 @@ export const Ai = () => {
     setIsLoading(true);
 
     try {
+      console.log('Sending message:', input.trim());
       const response = await fetch('/ai/chat/', {
         method: 'POST',
         headers: {

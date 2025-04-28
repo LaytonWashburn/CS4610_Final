@@ -16,6 +16,7 @@ import { Server } from 'socket.io';
 import { getIo, setIo } from './socket/socketManager';
 import { QueueService } from './services/queueService';
 import { SocketService } from './services/socketService';
+import { preloadModel, getOllama } from './ollama/ollama';
 
 dotenv.config();
 
