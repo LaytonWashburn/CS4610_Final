@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { socket } from '../../socket';
+import { useSocket } from '../../hooks/useSocket';
 import { useApi } from "../../lib/hooks/use_api";
 import { requireLogin } from "../../lib/hooks/require_login";
 import { Link } from 'react-router-dom';
@@ -17,7 +17,23 @@ export const DashboardHome = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const api = useApi();
-  
+
+  // Initialize socket with tutor status event handler
+  const { socket, connected } = useSocket([
+    {
+      event: 'tutor-status-update',
+      handler: (data: { type: 'increment' | 'decrement' }) => {
+        setOnlineTutors((prev: number) => {
+          if (data.type === 'increment') {
+            return prev + 1;
+          } else {
+            return Math.max(0, prev - 1);
+          }
+        });
+      }
+    }
+  ]);
+
   async function fetchUser() {
     const res = await api.get("/api/users/me");
     if (!res.error) {
@@ -28,7 +44,7 @@ export const DashboardHome = () => {
 
   useEffect(() => {
     fetchUser();
-  }, [])
+  }, []);
 
   // Initialize online tutor count
   useEffect(() => {
@@ -45,24 +61,12 @@ export const DashboardHome = () => {
     fetchInitialCount();
   }, []);
 
-  // Listen for tutor status updates
+  // Log socket connection status
   useEffect(() => {
-    const handleTutorStatusUpdate = (data: { type: 'increment' | 'decrement' }) => {
-      setOnlineTutors(prev => {
-        if (data.type === 'increment') {
-          return prev + 1;
-        } else {
-          return Math.max(0, prev - 1);
-        }
-      });
-    };
-
-    socket.on('tutor-status-update', handleTutorStatusUpdate);
-
-    return () => {
-      socket.off('tutor-status-update', handleTutorStatusUpdate);
-    };
-  }, []);
+    if (socket) {
+      console.log('Socket connection status:', connected ? 'Connected' : 'Disconnected');
+    }
+  }, [socket, connected]);
 
   if (loading) return <div className="flex justify-center items-center h-screen">Loading...</div>;
 

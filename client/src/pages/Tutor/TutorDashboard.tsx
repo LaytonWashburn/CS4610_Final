@@ -94,7 +94,7 @@ export const TutorDashboard = () => {
         });
 
         // Listen for the response with chat room ID
-        socket.once('tutor_assigned', async (response: { chatRoomId: number }) => {
+        socket.on('tutor_assigned', async (response: { chatRoomId: number }) => {
             console.log('Tutor accepted student, navigating to chat room:', response.chatRoomId);
             
             // Send greeting message using the REST API

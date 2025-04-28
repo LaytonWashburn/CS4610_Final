@@ -27,10 +27,12 @@ export const setIo = (server: http.Server, prismaClient: PrismaClient) => {
 
     // Handle tutor status updates
     socket.on("tutor-status", async (data: { userId: number, action: 'online' | 'offline' }) => {
-      console.log("In the tutor status");
+      console.log("In the tutor status event on the server");
       if (data.action === 'online') {
+        console.log("Setting tutor online from the socketManager");
         await tutorStatusService.setTutorOnline(data.userId);
       } else {
+        console.log("Setting tutor offline from the socketManager");
         await tutorStatusService.setTutorOffline(data.userId);
       }
     });

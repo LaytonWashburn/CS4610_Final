@@ -19,6 +19,7 @@ export class TutorStatusService {
   }
 
   public async setTutorOnline(userId: number): Promise<void> {
+    console.log("Setting tutor online in the server from the tutorStatusService");
     try {
       const tutor = await this.prisma.tutor.findUnique({
         where: { tutorId: userId }
@@ -46,6 +47,7 @@ export class TutorStatusService {
   }
 
   public async setTutorOffline(userId: number): Promise<void> {
+    console.log("Setting tutor offline in the server from the tutorStatusService");
     try {
       await this.prisma.tutor.update({
         where: { tutorId: userId },

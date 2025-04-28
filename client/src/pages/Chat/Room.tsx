@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { io, Socket } from 'socket.io-client';
+// import { io, Socket } from 'socket.io-client';
 import { useApi } from "../../lib/hooks/use_api";
 import { useNavigate } from 'react-router-dom'; // ✅ import useNavigate
+import { useSocket } from '../../hooks/useSocket';
 
 interface Message {
   id: number;
@@ -19,7 +20,7 @@ export const Room = () => {
   const { id } = useParams<{ id: string }>();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState<string>('');
-  const [socket, setSocket] = useState<Socket | null>(null);
+  // const [socket, setSocket] = useState<Socket | null>(null);
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [roomInformation, setRoomInformation] = useState<any>({});
@@ -27,6 +28,23 @@ export const Room = () => {
 
   const api = useApi();
   const navigate = useNavigate(); // Initialize navigate
+
+
+  const { socket, emit, connected } = useSocket([
+    {
+        event: 'message',
+        handler: (message: string) => {
+            setMessages(prev => [...prev, message]);
+        }
+    },
+    {
+      event:  'receiveMessage', 
+      handler: (message: Message) => {
+        setMessages((prevMessages) => [...prevMessages, message]);
+      }
+    }
+  ]);
+
 
   async function fetchUser() {
     const res = await api.get("/api/users/me");
@@ -55,21 +73,29 @@ export const Room = () => {
   }
 
   useEffect(() => {
-    const socket = io('http://localhost:3000');
-    setSocket(socket);
-
     if (id) {
-      socket.emit('join-room', id);
+      emit('join-room', id);
     }
+  }, [connected, id, emit]);
 
-    socket.on('receiveMessage', (message: Message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
-    });
+  
+  useEffect(() => {
+    fetchUser();
+    fetchRoomInformation();
+  }, []);
 
+  useEffect(() => {
+    if (id && user) fetchMessages();
+  }, [id, user]);
+
+  // I might not need this
+  useEffect(() => {
     return () => {
-      socket.disconnect();
+      if (socket) {
+        socket.disconnect();
+      }
     };
-  }, [id]);
+  }, [socket]);
 
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user) return;
@@ -134,8 +160,7 @@ export const Room = () => {
     if (!socket || !user) return;
 
     try {
-        // Emit socket event to end session
-        socket.emit('end_session', {
+        emit('end_session', {
             tutorId: parseInt(user.id),
             chatRoomId: parseInt(id!)
         });
@@ -150,14 +175,6 @@ export const Room = () => {
     }
   }
 
-  useEffect(() => {
-    fetchUser();
-    fetchRoomInformation();
-  }, []);
-
-  useEffect(() => {
-    if (id && user) fetchMessages();
-  }, [id, user]);
 
   if (!user || loading) return <div>Loading...</div>;
 
