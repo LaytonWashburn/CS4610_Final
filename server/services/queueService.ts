@@ -125,7 +125,7 @@ export class QueueService {
     }
 
     async assignTutor(studentId: number, tutorId: number): Promise<void> {
-        // Update queue entry status
+        // Update queue entry status to indicate tutor is assigned
         await this.prisma.queueEntry.updateMany({
             where: {
                 studentId,
@@ -133,16 +133,6 @@ export class QueueService {
             },
             data: {
                 status: QueueStatus.IN_PROGRESS
-            }
-        });
-
-        // Create a new session
-        await this.prisma.session.create({
-            data: {
-                studentId,
-                tutorId,
-                status: 'ACTIVE',
-                name: `Session ${studentId}-${tutorId}-${Date.now()}` // Required field
             }
         });
 
