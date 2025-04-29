@@ -9,25 +9,56 @@ interface SocketEvent {
 export const useSocket = (events: SocketEvent[] = []) => {
     const socketRef = useRef<Socket | null>(null);
     const [connected, setConnected] = useState(false);
+    const [isReconnecting, setIsReconnecting] = useState(false);
 
-    useEffect(() => {
+    const connectSocket = useCallback(() => {
         const socket = io(import.meta.env.SOCKET_URL || 'http://localhost:3000', {
             autoConnect: true,
             reconnection: true,
-            reconnectionAttempts: 5,
+            reconnectionAttempts: Infinity, // Keep trying to reconnect forever
             reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            timeout: 20000,
         });
 
         socketRef.current = socket;
 
         // Update connection state
-        socket.on('connect', () => setConnected(true));
-        socket.on('disconnect', () => setConnected(false));
+        socket.on('connect', () => {
+            console.log('Socket connected');
+            setConnected(true);
+            setIsReconnecting(false);
+        });
+
+        socket.on('disconnect', () => {
+            console.log('Socket disconnected');
+            setConnected(false);
+        });
+
+        socket.on('reconnect_attempt', (attemptNumber) => {
+            console.log('Reconnection attempt:', attemptNumber);
+            setIsReconnecting(true);
+        });
+
+        socket.on('reconnect_error', (error) => {
+            console.error('Reconnection error:', error);
+        });
+
+        socket.on('reconnect_failed', () => {
+            console.error('Failed to reconnect');
+            setIsReconnecting(false);
+        });
+
+        return socket;
+    }, []);
+
+    useEffect(() => {
+        const socket = connectSocket();
 
         return () => {
             socket.disconnect();
         };
-    }, []);
+    }, [connectSocket]);
 
     useEffect(() => {
         const socket = socketRef.current;
@@ -40,6 +71,7 @@ export const useSocket = (events: SocketEvent[] = []) => {
 
         // On reconnect, rebind all handlers
         const handleReconnect = () => {
+            console.log('Socket reconnected, rebinding handlers');
             events.forEach(({ event, handler }) => {
                 socket.on(event, handler);
             });
@@ -56,13 +88,26 @@ export const useSocket = (events: SocketEvent[] = []) => {
     }, [events]);
 
     const emit = useCallback(<T = any>(event: string, data: T) => {
+        if (!socketRef.current?.connected) {
+            console.log('Socket not connected, attempting to reconnect...');
+            socketRef.current?.connect();
+        }
         socketRef.current?.emit(event, data);
+    }, []);
+
+    const reconnect = useCallback(() => {
+        console.log('Manual reconnection requested');
+        if (socketRef.current) {
+            socketRef.current.connect();
+        }
     }, []);
 
     return {
         socket: socketRef.current,
         emit,
         connected,
+        isReconnecting,
+        reconnect
     };
 };
 

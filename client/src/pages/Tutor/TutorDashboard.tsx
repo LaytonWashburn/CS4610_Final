@@ -88,6 +88,15 @@ export const TutorDashboard = () => {
                 console.log('Session created:', data);
                 navigate(`/dashboard/chat/${data.session.chatRoomId}`);
             }
+        },
+        {
+            event: 'session_ended',
+            handler: (data: { success: boolean, navigateTo: string }) => {
+                console.log('Session ended:', data);
+                if (data.success) {
+                    navigate(data.navigateTo);
+                }
+            }
         }
     ]);
 

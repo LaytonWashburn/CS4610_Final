@@ -22,6 +22,8 @@ interface MatchData {
     description: string;
     estimatedTime: number;
     studentName: string;
+    studentSocket: Socket;
+    tutorSocket: Socket;
 }
 
 interface ChatRoom {
@@ -100,6 +102,30 @@ export class SocketService {
             });
             console.log('Chatroom created:', chatRoom);
 
+            // const checkSession = await this.prisma.session.findFirst({
+            //     where: {
+            //         AND: [
+            //             { studentId: data.studentId },
+            //             { tutorId: tutor.id },
+            //             { status: SessionStatus.ACTIVE }
+            //         ]
+            //     }
+            // });
+            // if (checkSession) {
+            //     console.log('Session already exists');
+            //     const session = await this.prisma.session.update({
+            //         where: { 
+            //             id: checkSession.id
+            //         },
+            //         data: {
+            //             status: SessionStatus.ENDED
+            //         }
+            //     });
+            //     return session;
+            // }
+            
+            
+
             // Create the session
             console.log('Creating session...', data);
             const session:Session | undefined = await this.prisma.session.create({
@@ -128,6 +154,127 @@ export class SocketService {
         this.io.on('connection', (socket: Socket) => {
             console.log('New client connected:', socket.id);
 
+            // Add logging for event registration
+            console.log('Registering end_session handler for socket:', socket.id);
+
+            socket.on('hello', () => {
+                console.log('Hello received from socket:', socket.id);
+                console.log('Socket data:', socket.data);
+                console.log('Socket connected:', socket.connected);
+            });
+            
+            // Handle end_session event
+            socket.on('end_session', async (data: { tutorId: number; chatRoomId: number }) => {
+                console.log('End session request received from socket:', socket.id);
+                console.log('End session data:', data);
+                try {
+
+                    console.log('Looking for tutor with ID:', data.tutorId);
+                    const tutor = await this.prisma.tutor.findUnique({
+                        where: {
+                            id: data.tutorId
+                        }
+                    });
+                    
+                    if(!tutor) {
+                        console.error('Tutor not found');
+                        return;
+                    }
+
+                    console.log('Tutor found:', tutor);
+                    
+                    // Find the session
+                    console.log('Looking for session with:', {
+                        tutorId: tutor.id,
+                        chatRoomId: data.chatRoomId,
+                        status: SessionStatus.ACTIVE
+                    });
+                    
+                    const session = await this.prisma.session.findFirst({
+                        where: {
+                            tutorId: tutor.id,
+                            chatRoomId: data.chatRoomId,
+                            status: SessionStatus.ACTIVE
+                        }
+                    });
+
+                    if (!session) {
+                        console.error('No active session found for:', {
+                            tutorId: tutor.id,
+                            chatRoomId: data.chatRoomId
+                        });
+                        return;
+                    }
+
+                    console.log('Found session:', session);
+
+                    // Update session status
+                    const updatedSession = await this.prisma.session.update({
+                        where: { id: session.id },
+                        data: { status: SessionStatus.ENDED }
+                    });
+
+                    console.log('Updated session status to ENDED:', updatedSession);
+                    
+                    const matchData = this.matchedPairs.get(tutor.tutorId);
+                    console.log('Looking for matchData with tutorId:', tutor.tutorId);
+                    console.log('Current matchedPairs keys:', Array.from(this.matchedPairs.keys()));
+                    console.log('Found matchData:', matchData);
+                    
+                    if(!matchData){
+                        console.error('Student socket not found');
+                        return;
+                    }
+
+                    console.log('Student socket ID:', matchData.studentSocket.id);
+                    console.log('Tutor socket ID:', matchData.tutorSocket.id);
+                    console.log('Student socket connected:', matchData.studentSocket.connected);
+                    console.log('Tutor socket connected:', matchData.tutorSocket.connected);
+
+                    // Notify all relevant sockets
+                    matchData.studentSocket.emit('session_ended', { 
+                        success: true, 
+                        navigateTo: '/dashboard/queue' 
+                    });
+
+                    matchData.tutorSocket.emit('session_ended', { 
+                        success: true, 
+                        navigateTo: '/dashboard/queue' 
+                    });
+                
+                    this.matchedPairs.delete(tutor.tutorId);
+                    console.log('Removed from matched pairs');
+
+                    // Update queue entry status
+                    try {
+                        // First find the queue entry
+                        const queueEntry = await this.prisma.queueEntry.findFirst({
+                            where: {
+                                studentId: updatedSession.studentId,
+                                status: QueueStatus.IN_PROGRESS
+                            }
+                        });
+
+                        if (queueEntry) {
+                            // Then update it using its id
+                            const updatedQueueEntry = await this.prisma.queueEntry.update({
+                                where: { id: queueEntry.id },
+                                data: { status: QueueStatus.COMPLETED }
+                            });
+                            console.log('Queue entry updated to COMPLETED:', updatedQueueEntry);
+                        } else {
+                            console.log('No queue entry found to update');
+                        }
+                    } catch (error) {
+                        console.error('Error updating queue entry status:', error);
+                    }
+                    
+                    
+                } catch (error) {
+                    console.error('Error ending session:', error);
+                    socket.emit('session_ended', { success: false });
+                }
+            });
 
             // Socket Event for when a student joins the queue
             socket.on('student_enqueue', async (data: { studentId: number, queueEntry: QueueEntry }) => {
@@ -219,139 +366,133 @@ export class SocketService {
                     console.error('Session not created');
                     return;
                 }
+
+                // Get the sockets before creating the match
                 const studentSocket = this.waitingStudents.get(data.studentId);
                 const tutorSocket = this.availableTutors.get(data.tutorId);
-                if (studentSocket) {
-                    studentSocket.emit('session_created', { success: true, session: session });
+
+                if (!studentSocket || !tutorSocket) {
+                    console.error('Student or tutor socket not found');
+                    return;
                 }
-                if (tutorSocket) {
-                    tutorSocket.emit('session_created', { success: true, session: session });
-                }
-                
+
+                // Create the match data with the sockets
+                const matchData: MatchData = {
+                    studentId: data.studentId,
+                    tutorId: data.tutorId,
+                    sessionId: session.id,
+                    subject: data.subject,
+                    urgency: data.urgency,
+                    description: data.description,
+                    estimatedTime: data.estimatedTime,
+                    studentName: data.studentName,
+                    studentSocket,
+                    tutorSocket
+                };
+
+                // Store the match
+                this.matchedPairs.set(data.tutorId, matchData);
+
+                console.log('Setting Matched pairs:', this.matchedPairs);
+
+                // Notify both parties
+                studentSocket.emit('session_created', { success: true, session: session });
+                tutorSocket.emit('session_created', { success: true, session: session });
+
+                // Remove from available tutors and waiting students
+                this.availableTutors.delete(data.tutorId);
+                this.waitingStudents.delete(data.studentId);
             });
 
-            // // Handle session ending
-            // socket.on('end_session', async (data: { tutorId: number, chatRoomId: number }) => {
-            //     try {
-            //         console.log('Starting session end process:', data);
-            //         const { tutorId, chatRoomId } = data;
-                    
-            //         // Start a transaction for atomic updates
-            //         const result = await this.prisma.$transaction(async (prisma: Omit<PrismaClient, "$connect" | "$disconnect" | "$on" | "$transaction" | "$use" | "$extends">) => {
-            //             // Find the session with all related data
-            //             const session = await prisma.session.findFirst({
-            //                 where: { 
-            //                     chatRoomId: chatRoomId,
-            //                     OR: [
-            //                         { status: SessionStatus.ACTIVE },
-            //                         { status: SessionStatus.ENDED },
-            //                         { status: SessionStatus.CANCELLED }
-            //                     ]
-            //                 },
-            //                 include: {
-            //                     tutor: {
-            //                         select: {
-            //                             id: true,
-            //                             available: true
-            //                         }
-            //                     }
-            //                 }
-            //             });
-
-            //             if (!session) {
-            //                 throw new Error('Session not found or in invalid state');
-            //             }
-
-            //             // Validate session state transition
-            //             if (session.status === SessionStatus.CANCELLED) {
-            //                 throw new Error('Cannot end a cancelled session');
-            //             }
-
-            //             // Verify tutor is actually in this session
-            //             if (session.tutorId !== tutorId) {
-            //                 throw new Error(`Tutor ${tutorId} not associated with session ${session.id}`);
-            //             }
-
-            //             // Check if session is already ended
-            //             if (session.status === SessionStatus.ENDED) {
-            //                 return { session, alreadyEnded: true };
-            //             }
-
-            //             // Update session status
-            //             const updatedSession = await prisma.session.update({
-            //                 where: { id: session.id },
-            //                 data: { 
-            //                     status: SessionStatus.ENDED,
-            //                     endTime: new Date()
-            //                 }
-            //             });
-
-            //             // Find and update the associated queue entry
-            //             const queueEntry = await prisma.queueEntry.findFirst({
-            //                 where: {
-            //                     studentId: session.studentId,
-            //                     OR: [
-            //                         { status: QueueStatus.IN_PROGRESS },
-            //                         { status: QueueStatus.WAITING }
-            //                     ]
-            //                 }
-            //             });
-
-            //             if (queueEntry) {
-            //                 await prisma.queueEntry.update({
-            //                     where: { id: queueEntry.id },
-            //                     data: { 
-            //                         status: QueueStatus.COMPLETED
-            //                     }
-            //                 });
-            //             }
-
-            //             // Update tutor availability
-            //             await prisma.tutor.update({
-            //                 where: { id: tutorId },
-            //                 data: { 
-            //                     available: true
-            //                 }
-            //             });
-
-            //             return { session: updatedSession, alreadyEnded: false };
-            //         }, {
-            //             timeout: 10000,
-            //             maxWait: 5000,
-            //             isolationLevel: 'Serializable'
-            //         });
-
-            //         const { session, alreadyEnded } = result;
-
-            //         if (alreadyEnded) {
-            //             console.log('Session already ended, handling cleanup only');
-            //             await this.handleSessionCleanup(session, tutorId, socket);
-            //             return;
-            //         }
-
-            //         // Handle cleanup and matching
-            //         await this.handleSessionCleanup(session, tutorId, socket);
-            //         this.matchNextPair();
-
-            //         console.log(`Session ${session.id} ended successfully, tutor ${tutorId} is now available`);
-            //     } catch (error) {
-            //         console.error('Error ending session:', error);
-            //         const errorMessage = error instanceof Error ? error.message : 'Failed to end session';
-            //         socket.emit('session_ended', { 
-            //             success: false, 
-            //             error: errorMessage 
-            //         });
-            //     }
-            // });
 
             // Handle tutor availability
-            socket.on('tutor_available', (data: { tutorId: number, isAvailable: boolean }) => {
+            socket.on('tutor_available', async (data: { tutorId: number, isAvailable: boolean }) => {
                 console.log('Socket Service recieved Tutor available signal:', data);
                 try {
                     if (data.isAvailable) {
                         console.log(`Tutor ${data.tutorId} is now available`);
                         this.availableTutors.set(data.tutorId, socket);
                         console.log('Available tutors:', Array.from(this.availableTutors.keys()));
+
+                        const tutor = await this.prisma.tutor.findUnique({
+                            where: { tutorId: data.tutorId }
+                        });
+                        if (!tutor) {
+                            console.error('Tutor not found');
+                            return;
+                        }
+
+                        const waitingStudents = Array.from(this.waitingStudents.entries());
+                        if (waitingStudents.length > 0) {
+                            const [studentId, studentSocket] = waitingStudents[0];
+                            const queueEntry = await this.prisma.queueEntry.findFirst({
+                                where: {
+                                    studentId: studentId,
+                                    status: QueueStatus.WAITING
+                                }
+                            });
+                            if (!queueEntry) {
+                                console.error('Queue entry not found');
+                                return;
+                            }
+
+                            // Ensure all required fields are present and non-null
+                            if (!queueEntry.subject || !queueEntry.urgency || !queueEntry.description || !queueEntry.estimatedTime) {
+                                console.error('Queue entry missing required fields');
+                                return;
+                            }
+
+                            const session = await this.createSession({
+                                tutorId: data.tutorId,
+                                studentId: studentId,
+                                queueEntryId: queueEntry.id,
+                                subject: queueEntry.subject,
+                                urgency: queueEntry.urgency,
+                                description: queueEntry.description,
+                                estimatedTime: queueEntry.estimatedTime
+                            });
+
+                            if (!session) {
+                                console.error('Session not created');
+                                return;
+                            }
+
+                            const tutorSocket = this.availableTutors.get(data.tutorId);
+                            if (!tutorSocket) {
+                                console.error('Tutor socket not found');
+                                return;
+                            }
+
+
+                            const student = await this.prisma.user.findUnique({
+                                where: {
+                                    id: studentId
+                                }
+                            });
+
+                            if (!student) {
+                                console.error('Student not found');
+                                return;
+                            }
+
+                            tutorSocket.emit('student_waiting', { 
+                                tutor: tutor, 
+                                student: {
+                                    id: studentId,
+                                    firstName: student?.firstName,
+                                    lastName: student?.lastName,
+                                    email: student?.email
+                                },
+                                queueEntry: {                   
+                                    id: queueEntry.id,
+                                    subject: queueEntry.subject,
+                                    urgency: queueEntry.urgency,
+                                    description: queueEntry.description,
+                                    estimatedTime: queueEntry.estimatedTime,
+                                    position: queueEntry.position
+                                },
+                            });
+                        }
                     } else {
                         console.log(`Tutor ${data.tutorId} is no longer available`);
                         this.availableTutors.delete(data.tutorId);
@@ -361,27 +502,6 @@ export class SocketService {
                     console.error('Error handling tutor availability:', error);
                 }
             });
-
-            // // Handle student joining queue
-            // socket.on('join_queue', async (data: { studentId: number }) => {
-            //     try {
-            //         console.log(`Student ${data.studentId} joined the queue`);
-            //         this.waitingStudents.set(data.studentId, socket);
-            //         this.matchNextPair();
-            //     } catch (error) {
-            //         console.error('Error handling student join queue:', error);
-            //     }
-            // });
-
-            // // Handle tutor accepting student
-            // socket.on('tutor_assigned', async (data: MatchData) => {
-            //     try {
-            //         console.log(`Tutor ${data.tutorId} accepted student ${data.studentId}`);
-            //         await this.handleMatch(data);
-            //     } catch (error) {
-            //         console.error('Error handling tutor assignment:', error);
-            //     }
-            // });
 
             // Handle disconnection
             socket.on('disconnect', async () => {
@@ -434,230 +554,7 @@ export class SocketService {
         });
     }
 
-    private async handleSessionCleanup(
-        session: any, // TODO: Add proper type
-        tutorId: number,
-        socket: Socket
-    ) {
-        try {
-            // Remove from matched pairs
-            this.matchedPairs.delete(tutorId);
-            console.log('Removed tutor from matched pairs:', tutorId);
 
-            // Handle tutor cleanup with socket validation
-            const tutorSocket = this.availableTutors.get(tutorId);
-            if (tutorSocket?.connected) {
-                console.log('Found existing tutor socket, sending session_ended');
-                tutorSocket.emit('session_ended', { 
-                    success: true,
-                    navigateTo: '/tutor-queue'
-                });
-            } else {
-                console.log(`Adding tutor ${tutorId} back to available tutors`);
-                this.availableTutors.set(tutorId, socket);
-                socket.emit('session_ended', { 
-                    success: true,
-                    navigateTo: '/tutor-queue'
-                });
-            }
-
-            // Handle student cleanup with socket validation
-            const studentId = session.studentId;
-            const studentSocket = this.waitingStudents.get(studentId);
-            if (studentSocket?.connected) {
-                studentSocket.emit('session_ended', { 
-                    success: true,
-                    navigateTo: '/dashboard/queue'
-                });
-                this.waitingStudents.delete(studentId);
-            }
-        } catch (error) {
-            console.error('Error in session cleanup:', error);
-            throw error;
-        }
-    }
-
-    private async matchNextPair() {
-        try {
-            console.log('Starting matchNextPair...');
-            // Get all available tutors
-            const availableTutors = Array.from(this.availableTutors.entries())
-                .filter(([tutorId]) => !this.matchedPairs.has(tutorId));
-            console.log('Available tutors:', availableTutors.map(([id]) => id));
-
-            // If no tutors available, nothing to do
-            if (availableTutors.length === 0) {
-                console.log('No available tutors found');
-                return;
-            }
-
-            // Get all waiting students in queue order
-            const queueEntries = await this.queueService.getWaitingQueue();
-            console.log('Full queue state:', {
-                totalEntries: queueEntries?.length || 0,
-                entries: queueEntries?.map(entry => ({
-                    id: entry.id,
-                    studentId: entry.studentId,
-                    status: entry.status,
-                    subject: entry.subject,
-                    position: entry.position
-                })) || []
-            });
-
-            if (!queueEntries || queueEntries.length === 0) {
-                console.log('No students in queue');
-                // No students in queue, notify tutors they're waiting
-                for (const [tutorId, tutorSocket] of availableTutors) {
-                    tutorSocket.emit('waiting_for_requests', { message: 'Waiting for student requests...' });
-                }
-                return;
-            }
-
-            // For each available tutor, try to match with the next student
-            for (const [tutorId, tutorSocket] of availableTutors) {
-                console.log(`Processing tutor ${tutorId}`);
-                // Find next unmatched student
-                const nextStudent = queueEntries.find(entry => 
-                    entry.status === QueueStatus.WAITING &&
-                    !Array.from(this.matchedPairs.values()).some(match => match.studentId === entry.studentId)
-                );
-
-                if (!nextStudent) {
-                    console.log(`No unmatched students found for tutor ${tutorId}`);
-                    tutorSocket.emit('waiting_for_requests', { message: 'Waiting for student requests...' });
-                    continue;
-                }
-
-                const studentSocket = this.waitingStudents.get(nextStudent.studentId);
-                if (!studentSocket) {
-                    console.log(`Student ${nextStudent.studentId} not connected, skipping`);
-                    continue;
-                }
-
-                console.log(`Matching tutor ${tutorId} with student ${nextStudent.studentId}`, {
-                    studentDetails: {
-                        id: nextStudent.id,
-                        studentId: nextStudent.studentId,
-                        subject: nextStudent.subject,
-                        position: nextStudent.position
-                    }
-                });
-
-                // Create the match data
-                const matchData: MatchData = {
-                    studentId: nextStudent.studentId,
-                    tutorId: tutorId,
-                    sessionId: 0, // Will be set when session is created
-                    subject: nextStudent.subject || '',
-                    urgency: nextStudent.urgency || Urgency.LOW,
-                    description: nextStudent.description || '',
-                    estimatedTime: nextStudent.estimatedTime || 0,
-                    studentName: nextStudent.studentName || ''
-                };
-
-                // Store the match
-                this.matchedPairs.set(tutorId, matchData);
-
-                // Notify tutor
-                tutorSocket.emit('student_assigned', matchData);
-            }
-        } catch (error) {
-            console.error('Error in matchNextPair:', error);
-        }
-    }
-
-    private async handleMatch(matchData: MatchData) {
-        const { studentId, tutorId, subject, urgency, description, estimatedTime, studentName } = matchData;
-        
-        try {
-            // Create chatroom first
-            const chatRoom = await this.prisma.chatRoom.create({
-                data: {
-                    name: `Tutor Session - ${subject}`,
-                    isPrivate: true
-                }
-            });
-
-            // Create session
-            const session = await this.prisma.session.create({
-                data: {
-                    studentId,
-                    tutorId,
-                    subject,
-                    urgency,
-                    description,
-                    estimatedTime,
-                    status: SessionStatus.ACTIVE,
-                    chatRoomId: chatRoom.id,
-                    name: `Tutor Session - ${subject} - ${new Date().toISOString()}`
-                }
-            });
-
-            // Add both users to the chatroom
-            await this.prisma.chatRoomParticipant.createMany({
-                data: [
-                    { userId: studentId, chatRoomId: chatRoom.id },
-                    { userId: tutorId, chatRoomId: chatRoom.id }
-                ]
-            });
-
-            // Update queue entry status
-            await this.prisma.queueEntry.updateMany({
-                where: {
-                    studentId: studentId,
-                    status: QueueStatus.WAITING
-                },
-                data: {
-                    status: QueueStatus.IN_PROGRESS
-                }
-            });
-
-            // Get sockets before removing from maps
-            const studentSocket = this.waitingStudents.get(studentId);
-            const tutorSocket = this.availableTutors.get(tutorId);
-
-            // Update the match with session ID
-            this.matchedPairs.set(tutorId, {
-                ...matchData,
-                sessionId: session.id
-            });
-            
-            // Notify both parties
-            if (studentSocket) {
-                console.log(`Notifying student ${studentId} of match with tutor ${tutorId}`);
-                studentSocket.emit('tutor_assigned', {
-                    ...matchData,
-                    sessionId: session.id,
-                    chatRoomId: chatRoom.id
-                });
-            }
-            if (tutorSocket) {
-                console.log(`Notifying tutor ${tutorId} of match with student ${studentId}`);
-                tutorSocket.emit('tutor_assigned', {
-                    ...matchData,
-                    sessionId: session.id,
-                    chatRoomId: chatRoom.id
-                });
-            }
-
-            // Remove from available tutors and waiting students after notifications
-            this.availableTutors.delete(tutorId);
-            this.waitingStudents.delete(studentId);
-            console.log(`Match completed: Tutor ${tutorId} and Student ${studentId} in session ${session.id}`);
-        } catch (error) {
-            console.error('Error creating session and chatroom:', error);
-            // Notify both parties of the error
-            const studentSocket = this.waitingStudents.get(studentId);
-            const tutorSocket = this.availableTutors.get(tutorId);
-            
-            if (studentSocket) {
-                studentSocket.emit('match-error', { error: 'Failed to create session' });
-            }
-            if (tutorSocket) {
-                tutorSocket.emit('match-error', { error: 'Failed to create session' });
-            }
-        }
-    }
 
     public getWaitingStudentsCount(): number {
         return this.waitingStudents.size;

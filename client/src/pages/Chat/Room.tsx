@@ -88,6 +88,19 @@ export const Room = () => {
     if (id && user) fetchMessages();
   }, [id, user]);
 
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on('message', (message: Message) => {
+      console.log('Received message:', message);
+      setMessages(prev => [...prev, message]);
+    });
+
+    return () => {
+      socket.off('message');
+    };
+  }, [socket, navigate]);
+
   // I might not need this
   useEffect(() => {
     return () => {
@@ -156,22 +169,40 @@ export const Room = () => {
   }
 
   const handleEndSession = async () => {
-    console.log("Ending session");
-    if (!socket || !user) return;
+    console.log("1. Starting handleEndSession");
+    if (!socket) {
+      console.log("2. Socket is null");
+      return;
+    }
+    if (!user) {
+      console.log("2. User is null");
+      return;
+    }
 
     try {
-        emit('end_session', {
-            tutorId: parseInt(user.id),
-            chatRoomId: parseInt(id!)
-        });
-
-        // Decrement room count
-        await decrementRoomCount();
-        console.log("Trying to navigate to queue page");
-        // Navigate to queue
-        navigate(`/dashboard/queue/`);
+      console.log("3. Socket connection status:", socket.connected);
+      console.log("4. Socket ID:", socket.id);
+      console.log("5. User ID:", user.id);
+      console.log("6. Room ID:", id);
+      
+      // Test socket connection with hello event
+      console.log("7. Emitting hello event");
+      socket.emit('hello');
+      
+      // Emit end_session event
+      console.log("8. Emitting end_session event with data:", {
+        tutorId: parseInt(user.id),
+        chatRoomId: parseInt(id!)
+      });
+      
+      socket.emit('end_session', {
+        tutorId: parseInt(user.id),
+        chatRoomId: parseInt(id!)
+      });
+      
+      console.log("9. End session event emitted successfully");
     } catch (error) {
-        console.error('Error ending session:', error);
+      console.error('10. Error in handleEndSession:', error);
     }
   }
 
@@ -198,7 +229,6 @@ export const Room = () => {
             >
               <div className="font-semibold text-xs">
                 {msg.sender ? `${msg.sender.firstName} ${msg.sender.lastName}` : 'Unknown Sender'}
-                
               </div>
               <div className="text-gray-700">{msg.content}</div>
               <div className="text-[10px] text-gray-500 mt-1">
@@ -210,12 +240,15 @@ export const Room = () => {
           <p className="text-center text-gray-500">No messages yet.</p>
         )}
       </div>
-      <button className="absolute bottom-4 right-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
-              onClick={roomInformation.isPrivate ? handleEndSession : handleLeave}
-      >
+      {roomInformation && (
+        <button 
+          className="absolute bottom-4 right-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200"
+          onClick={roomInformation.isPrivate ? handleEndSession : handleLeave}
+        >
           <span className="material-symbols-outlined mr-2">logout</span>
           {roomInformation.isPrivate ? "End Session" : "Leave"}
-      </button>
+        </button>
+      )}
       <div className="bg-secondary-grey w-[50vw] absolute bottom-0 m-4 rounded-lg h-[10vh] flex flex-col mx-auto">
         <input
           className="m-2 w-[100%] outline-none text-sm p-2 rounded"
