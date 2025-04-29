@@ -16,7 +16,7 @@ import { Server } from 'socket.io';
 import { getIo, setIo } from './socket/socketManager';
 import { QueueService } from './services/queueService';
 import { SocketService } from './services/socketService';
-import { preloadModel, getOllama } from './ollama/ollama';
+// import { preloadModel } from './ollama/ollama';
 
 dotenv.config();
 
@@ -25,6 +25,8 @@ const prismaClient = new PrismaClient();
 
 const minioClient = getMinioClient();
 createMinioProfileBucket(minioClient);
+
+// preloadModel().catch(console.error);
 
 const app = express();
 const server = http.createServer(app);  // Create the HTTP server

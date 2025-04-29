@@ -1,7 +1,20 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { socket } from '../../socket';
+import { useSocket } from '../../hooks/useSocket';
 import { jwtDecode } from 'jwt-decode';
+
+interface Session {
+    id: number;
+    studentId: number;
+    tutorId: number;    
+    subject: string;
+    urgency: string;
+    description: string;
+    estimatedTime: number;
+    status: string;
+    chatRoomId: number;
+    name: string;   
+}
 
 interface MyTokenPayload {
     userId: number;
@@ -19,60 +32,104 @@ interface StudentRequest {
     studentName: string;
 }
 
+interface Tutor {
+    id: number;
+    firstName: string;
+    lastName: string;
+}
+
+interface Student {
+    id: number;
+    firstName: string;
+    lastName: string;
+    email: string;
+}
+
+interface QueueEntry {
+    id: number;
+    studentId: number;
+    subject: string;
+    urgency: string;
+    description: string;    
+    estimatedTime: number;
+    position: number;
+    queueEntryId: number;
+}
+
 export const TutorDashboard = () => {
-    const [isOnline, setIsOnline] = useState(false);
+    const [isOnline, setIsOnline] = useState(true);
     const [showRequestModal, setShowRequestModal] = useState(false);
     const [currentRequest, setCurrentRequest] = useState<StudentRequest | null>(null);
     const [tutorName, setTutorName] = useState<{firstName: string, lastName: string} | null>(null);
     const navigate = useNavigate();
 
+
+    const { socket, emit } = useSocket([
+        {
+            event: 'student_waiting',
+            handler: (data: { tutor: Tutor, student: Student, queueEntry: QueueEntry }) => {
+                console.log('Student waiting:', data);
+                setCurrentRequest({
+                    studentId: data.student.id,     
+                    subject: data.queueEntry.subject,
+                    urgency: data.queueEntry.urgency,
+                    description: data.queueEntry.description,
+                    estimatedTime: data.queueEntry.estimatedTime,
+                    studentName: `${data.student.firstName} ${data.student.lastName}`,
+                    queueEntryId: data.queueEntry.id,
+                    position: data.queueEntry.position
+                });
+                setShowRequestModal(true);
+            }
+        },
+        {
+            event: 'session_created',
+            handler: (data: { success: boolean, session: Session }) => {
+                console.log('Session created:', data);
+                navigate(`/dashboard/chat/${data.session.chatRoomId}`);
+            }
+        }
+    ]);
+
+    // Log socket connection status and set tutor as available
     useEffect(() => {
-        const token = localStorage.getItem('authToken');
-        if (!token) {
-            navigate('/signin');
-            return;
-        }
+        if (socket) {
+            console.log('Socket connected, setting tutor as available');
+            const token = localStorage.getItem('authToken');
+            if (!token) {
+                navigate('/signin');
+                return;
+            }
 
-        const decoded = jwtDecode<MyTokenPayload>(token);
-        if (!decoded.isTutor) {
-            navigate('/dashboard');
-            return;
-        }
+            const decoded = jwtDecode<MyTokenPayload>(token);
+            if (!decoded.isTutor) {
+                navigate('/dashboard');
+                return;
+            }
 
-        setTutorName({
-            firstName: decoded.firstName,
-            lastName: decoded.lastName
-        });
-
-        console.log(decoded.userId);
-        console.log(decoded.isTutor);
-        console.log("Going to emit tutor_available");
-        // Set tutor online when component mounts
-        socket.emit('tutor_available', {
-            tutorId: decoded.userId,
-            isAvailable: true
-        });
-
-        // Listen for student assigned event
-        socket.on('student_assigned', (data: StudentRequest) => {
-            console.log('Student assigned:', data);
-            setCurrentRequest(data);
-            setShowRequestModal(true);
-        });
-
-        // Join the tutor's specific room using their user ID
-        socket.emit('join-room', `tutor-${decoded.userId}`);
-
-        setIsOnline(true);
-
-        // Cleanup on unmount
-        return () => {
-            socket.emit('tutor_available', {
-                tutorId: decoded.userId,
-                isAvailable: false
+            setTutorName({
+                firstName: decoded.firstName,
+                lastName: decoded.lastName
             });
-        };
-    }, [navigate]);
+
+            // Set tutor as available
+            emit('tutor_available', {
+                tutorId: decoded.userId,
+                isAvailable: true
+            });
+            setIsOnline(true);
+
+            // Cleanup on unmount
+            return () => {
+                console.log('Cleaning up tutor socket');
+                emit('tutor_available', {
+                    tutorId: decoded.userId,
+                    isAvailable: false
+                });
+                setIsOnline(false);
+            };
+        }
+    }, [socket, emit]);
 
     const handleAccept = async () => {
         if (!currentRequest || !tutorName) return;
@@ -82,47 +139,53 @@ export const TutorDashboard = () => {
         
         const decoded = jwtDecode<MyTokenPayload>(token);
         
+        console.log('Tutor accepted student, emitting tutor_assigned event:', currentRequest);
+
         // Emit tutor_assigned event with the student data
-        socket.emit('tutor_assigned', {
+        emit('tutor_assigned', {
             studentId: currentRequest.studentId,
             tutorId: decoded.userId,
             subject: currentRequest.subject,
             urgency: currentRequest.urgency,
             description: currentRequest.description,
             estimatedTime: currentRequest.estimatedTime,
-            studentName: currentRequest.studentName
+            studentName: currentRequest.studentName,
+            queueEntryId: currentRequest.queueEntryId,
+            position: currentRequest.position
         });
 
-        // Listen for the response with chat room ID
-        socket.on('tutor_assigned', async (response: { chatRoomId: number }) => {
-            console.log('Tutor accepted student, navigating to chat room:', response.chatRoomId);
-            
-            // Send greeting message using the REST API
-            try {
-                const messageResponse = await fetch('/chat/messages', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        content: `Hello ${currentRequest.studentName}, I'm ${tutorName.firstName} ${tutorName.lastName}, I see you're working on ${currentRequest.subject}. How can I help you today?`,
-                        chatRoomId: response.chatRoomId,
-                        senderId: decoded.userId
-                    }),
-                });
+        
 
-                if (!messageResponse.ok) {
-                    throw new Error('Failed to send greeting message');
-                }
-            } catch (error) {
-                console.error('Error sending greeting message:', error);
-            }
+        // // Listen for the response with chat room ID
+        // socket.on('tutor_assigned', async (response: { chatRoomId: number }) => {
+        //     console.log('Tutor accepted student, navigating to chat room:', response.chatRoomId);
             
-            navigate(`/dashboard/chat/${response.chatRoomId}`);
-        });
+        //     // Send greeting message using the REST API
+        //     try {
+        //         const messageResponse = await fetch('/chat/messages', {
+        //             method: 'POST',
+        //             headers: {
+        //                 'Content-Type': 'application/json',
+        //             },
+        //             body: JSON.stringify({
+        //                 content: `Hello ${currentRequest.studentName}, I'm ${tutorName.firstName} ${tutorName.lastName}, I see you're working on ${currentRequest.subject}. How can I help you today?`,
+        //                 chatRoomId: response.chatRoomId,
+        //                 senderId: decoded.userId
+        //             }),
+        //         });
 
-        setShowRequestModal(false);
-        setCurrentRequest(null);
+        //         if (!messageResponse.ok) {
+        //             throw new Error('Failed to send greeting message');
+        //         }
+        //     } catch (error) {
+        //         console.error('Error sending greeting message:', error);
+        //     }
+            
+        //     navigate(`/dashboard/chat/${response.chatRoomId}`);
+        // });
+
+        // setShowRequestModal(false);
+        // setCurrentRequest(null);
     };
 
     const handleReject = () => {
