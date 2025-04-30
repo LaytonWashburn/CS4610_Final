@@ -35,19 +35,19 @@ export const useSocket = (events: SocketEvent[] = []) => {
             setConnected(false);
         });
 
-        socket.on('reconnect_attempt', (attemptNumber) => {
-            console.log('Reconnection attempt:', attemptNumber);
-            setIsReconnecting(true);
-        });
+        // socket.on('reconnect_attempt', (attemptNumber) => {
+        //     console.log('Reconnection attempt:', attemptNumber);
+        //     setIsReconnecting(true);
+        // });
 
-        socket.on('reconnect_error', (error) => {
-            console.error('Reconnection error:', error);
-        });
+        // socket.on('reconnect_error', (error) => {
+        //     console.error('Reconnection error:', error);
+        // });
 
-        socket.on('reconnect_failed', () => {
-            console.error('Failed to reconnect');
-            setIsReconnecting(false);
-        });
+        // socket.on('reconnect_failed', () => {
+        //     console.error('Failed to reconnect');
+        //     setIsReconnecting(false);
+        // });
 
         return socket;
     }, []);

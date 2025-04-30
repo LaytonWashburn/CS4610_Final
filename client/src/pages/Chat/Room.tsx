@@ -191,12 +191,12 @@ export const Room = () => {
       
       // Emit end_session event
       console.log("8. Emitting end_session event with data:", {
-        tutorId: parseInt(user.id),
+        userId: parseInt(user.id),
         chatRoomId: parseInt(id!)
       });
       
       socket.emit('end_session', {
-        tutorId: parseInt(user.id),
+        userId: parseInt(user.id),
         chatRoomId: parseInt(id!)
       });
       
